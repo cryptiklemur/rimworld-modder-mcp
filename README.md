@@ -297,6 +297,18 @@ dotnet run --project src/RimWorldModderMcp/RimWorldModderMcp.csproj -- --rimworl
 - the runtime-only zip bundle
 - the `.sha256` checksum
 
+Trusted Publishing on nuget.org:
+
+1. In nuget.org, open `Trusted Publishing`.
+2. Add a GitHub Actions policy for:
+   - repository owner: `cryptiklemur`
+   - repository: `rimworld-modder-mcp`
+   - workflow file: `release.yml`
+3. In GitHub repo settings, add a repository variable:
+   - `NUGET_USERNAME` = your nuget.org profile name
+
+After that, no long-lived NuGet API key secret is needed.
+
 Useful commands:
 
 ```bash
@@ -305,7 +317,8 @@ npm run release:dry-run
 npm run release:prepare-artifacts -- 1.2.5
 ```
 
-Secrets used by CI:
+CI configuration:
 
-- `NUGET_API_KEY` for NuGet publish
+- NuGet Trusted Publishing via `NuGet/login@v1`
+- repo variable `NUGET_USERNAME`
 - `SEMANTIC_RELEASE_TOKEN` if you want release-created tags to trigger other workflows

@@ -5,7 +5,7 @@ const path = require("node:path");
 const { execFileSync } = require("node:child_process");
 
 const version = process.argv[2];
-const apiKey = process.env.NUGET_API_KEY;
+const apiKey = process.env.NUGET_TRUSTED_PUBLISHING_TOKEN;
 
 if (!version) {
   console.error("Expected release version argument.");
@@ -13,7 +13,7 @@ if (!version) {
 }
 
 if (!apiKey) {
-  console.error("NUGET_API_KEY is required to publish the .NET tool package.");
+  console.error("NUGET_TRUSTED_PUBLISHING_TOKEN is required. In GitHub Actions, provide it from NuGet/login@v1 via Trusted Publishing.");
   process.exit(1);
 }
 

@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -31,8 +32,14 @@ jobs:
       - name: Install release dependencies
         run: npm ci
 
+      - name: NuGet login (Trusted Publishing)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ vars.NUGET_USERNAME }}
+
       - name: Run semantic-release
         env:
           GH_TOKEN: ${{ secrets.SEMANTIC_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_TRUSTED_PUBLISHING_TOKEN: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: npx semantic-release
