@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "rimworld-modder-local": {
+      "command": "rimworld-modder-mcp",
+      "args": [
+        "--rimworld-path=C:\\path\\to\\RimWorld",
+        "--mod-dirs=C:\\path\\to\\RimWorld\\Mods,C:\\path\\to\\SteamWorkshop\\294100",
+        "--log-level=Information"
+      ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "rimworld-modder": {
+      "command": "rimworld-modder-mcp",
+      "args": [
+        "--rimworld-path=C:\\path\\to\\RimWorld",
+        "--log-level=Information"
+      ]
+    }
+  }
+}

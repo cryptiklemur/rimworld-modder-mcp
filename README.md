@@ -1,27 +1,234 @@
-# RimWorld MCP Server
+# RimWorld Modder MCP
 
-A high-performance MCP (Model Context Protocol) server for analyzing RimWorld XML definitions, patches, and mod interactions.
+MCP server for RimWorld mod analysis and modding workflows, implemented in C#/.NET 10.
 
-## Installation
+Primary focus:
 
-### 🐳 Docker Installation (Recommended)
+- XML defs and inheritance
+- patch inspection and conflict triage
+- mod compatibility and dependency checks
+- Player.log triage
+- release-readiness checks for RimWorld mods
 
-> **Note:** Docker must be installed on your system
+## Quickstart
 
-Add to your MCP client configuration:
+### Recommended: global `.NET tool`
+
+Requires a `.NET 10 SDK`.
+
+```bash
+dotnet tool install -g cryptiklemur.rimworld-modder-mcp
+```
+
+Most MCP clients can then use:
 
 ```json
 {
   "mcpServers": {
-    "rimworld": {
+    "rimworld-modder": {
+      "command": "rimworld-modder-mcp",
+      "args": [
+        "--rimworld-path=/absolute/path/to/RimWorld",
+        "--mod-dirs=/absolute/path/to/RimWorld/Mods"
+      ]
+    }
+  }
+}
+```
+
+Repo examples:
+
+- `claude-desktop-config.json`
+- `local-mcp-config.json`
+
+### No-install option
+
+If you do not want a global install, use `dnx` or `dotnet tool exec`. This also requires a `.NET 10 SDK`.
+
+Direct shell usage:
+
+```bash
+dnx cryptiklemur.rimworld-modder-mcp --yes -- --rimworld-path=/absolute/path/to/RimWorld
+```
+
+```bash
+dotnet tool exec cryptiklemur.rimworld-modder-mcp --yes -- --rimworld-path=/absolute/path/to/RimWorld
+```
+
+Headless MCP config with `dnx`:
+
+```json
+{
+  "mcpServers": {
+    "rimworld-modder": {
+      "command": "dnx",
+      "args": [
+        "cryptiklemur.rimworld-modder-mcp",
+        "--yes",
+        "--",
+        "--rimworld-path=/absolute/path/to/RimWorld",
+        "--mod-dirs=/absolute/path/to/RimWorld/Mods"
+      ]
+    }
+  }
+}
+```
+
+`--yes` is there so first-run package download does not pause for confirmation.
+
+## Client Setup
+
+Pick the client you care about:
+
+<details>
+<summary>Codex CLI</summary>
+
+Global installed tool:
+
+```bash
+codex mcp add rimworld-modder -- \
+  rimworld-modder-mcp \
+  --rimworld-path=/absolute/path/to/RimWorld \
+  --mod-dirs=/absolute/path/to/RimWorld/Mods
+```
+
+No-install:
+
+```bash
+codex mcp add rimworld-modder -- \
+  dnx cryptiklemur.rimworld-modder-mcp \
+  --yes \
+  -- \
+  --rimworld-path=/absolute/path/to/RimWorld \
+  --mod-dirs=/absolute/path/to/RimWorld/Mods
+```
+
+</details>
+
+<details>
+<summary>Claude Code</summary>
+
+Global installed tool:
+
+```bash
+claude mcp add --scope user rimworld-modder -- \
+  rimworld-modder-mcp \
+  --rimworld-path=/absolute/path/to/RimWorld \
+  --mod-dirs=/absolute/path/to/RimWorld/Mods
+```
+
+No-install:
+
+```bash
+claude mcp add --scope user rimworld-modder -- \
+  dnx cryptiklemur.rimworld-modder-mcp \
+  --yes \
+  -- \
+  --rimworld-path=/absolute/path/to/RimWorld \
+  --mod-dirs=/absolute/path/to/RimWorld/Mods
+```
+
+</details>
+
+<details>
+<summary>Goose CLI</summary>
+
+Quick session with the installed tool:
+
+```bash
+goose session \
+  --with-extension "rimworld-modder-mcp --rimworld-path=/absolute/path/to/RimWorld --mod-dirs=/absolute/path/to/RimWorld/Mods"
+```
+
+Quick session with no-install `dnx`:
+
+```bash
+goose session \
+  --with-extension "dnx cryptiklemur.rimworld-modder-mcp --yes -- --rimworld-path=/absolute/path/to/RimWorld --mod-dirs=/absolute/path/to/RimWorld/Mods"
+```
+
+For a persistent Goose setup, use `goose configure` and add a command-line extension.
+
+</details>
+
+<details>
+<summary>Claude Desktop, Cursor, Cline, Windsurf, Continue</summary>
+
+If the client exposes stdio MCP config, use either:
+
+- `command: "rimworld-modder-mcp"` with the args shown above
+- `command: "dnx"` with the no-install block shown above
+
+</details>
+
+## Runtime-Only Fallback
+
+If you only want the runtime, use the release bundle instead of the NuGet tool.
+
+1. Install the [.NET 10 runtime](https://dotnet.microsoft.com/download/dotnet/10.0/runtime).
+2. Download the latest `rimworld-modder-mcp-vX.Y.Z-dotnet.zip` from [GitHub Releases](https://github.com/cryptiklemur/rimworld-modder-mcp/releases).
+3. Extract it somewhere permanent.
+4. Point your MCP client at `RimWorldModderMcp.dll`.
+
+Bundle config:
+
+```json
+{
+  "mcpServers": {
+    "rimworld-modder": {
+      "command": "dotnet",
+      "args": [
+        "/absolute/path/to/RimWorldModderMcp.dll",
+        "--rimworld-path=/absolute/path/to/RimWorld",
+        "--mod-dirs=/absolute/path/to/RimWorld/Mods"
+      ]
+    }
+  }
+}
+```
+
+Each bundle also includes:
+
+- `manifest.json`
+- `QUICKSTART.md`
+- `examples/generic-mcp-config.posix.json`
+- `examples/generic-mcp-config.windows.json`
+
+## Docker
+
+Build:
+
+```bash
+docker build -t rimworld-modder-mcp .
+```
+
+Run:
+
+```bash
+docker run \
+  -i \
+  --rm \
+  -v "/path/to/rimworld:/rimworld:ro" \
+  -v "/path/to/workshop:/workshop:ro" \
+  rimworld-modder-mcp \
+  --rimworld-path=/rimworld \
+  --mod-dirs=/rimworld/Mods,/workshop
+```
+
+MCP config:
+
+```json
+{
+  "mcpServers": {
+    "rimworld-modder": {
       "command": "docker",
       "args": [
         "run",
         "-i",
         "--rm",
-        "-v", "/path/to/your/rimworld:/rimworld:ro",
-        "-v", "/path/to/your/workshop:/workshop:ro",
-        "ghcr.io/cryptiklemur/rimworld-mcp-server:latest",
+        "-v", "/path/to/rimworld:/rimworld:ro",
+        "-v", "/path/to/workshop:/workshop:ro",
+        "ghcr.io/cryptiklemur/rimworld-modder-mcp:latest",
         "--rimworld-path=/rimworld",
         "--mod-dirs=/rimworld/Mods,/workshop"
       ]
@@ -30,226 +237,75 @@ Add to your MCP client configuration:
 }
 ```
 
-<details>
-<summary>Manual Installation</summary>
+## Arguments
 
-#### 1. Clone the repository
+Required:
 
-```bash
-git clone https://github.com/cryptiklemur/rimworld-mcp-server.git
-cd rimworld-mcp-server
-```
+- `--rimworld-path` path to the RimWorld install
 
-#### 2. Build the project
+Common optional:
 
-```bash
-npm install
-npm run build
-```
+- `--mod-dirs` comma-separated mod directories
+- `--mods-config-path` path to `ModsConfig.xml` if you only want enabled mods
+- `--logPath` path to `Player.log`
+- `--allowedDlcs` official-content target for compatibility checks, default `Core,Biotech`
+- `--log-level` `Debug`, `Information`, `Warning`, or `Error`
+- `--scopeType` and `--scopeValue` for `audit_scope`
 
-#### 3. Configure your AI client
+Common RimWorld paths:
 
-Add to your MCP configuration:
+- Windows Steam: `D:\SteamLibrary\steamapps\common\RimWorld`
+- Linux Steam: `~/.steam/steam/steamapps/common/RimWorld`
+- macOS Steam: `~/Library/Application Support/Steam/steamapps/common/RimWorld`
 
-```json
-{
-  "mcpServers": {
-    "rimworld": {
-      "command": "node",
-      "args": [
-        "/path/to/rimworld-mcp-server/dist/index.js",
-        "--rimworld-path=/path/to/your/rimworld",
-        "--mod-dirs=/path/to/your/rimworld/Mods"
-      ]
-    }
-  }
-}
-```
+Run `rimworld-modder-mcp --help` for the full argument list.
 
-</details>
+## Tool Highlights
 
-<details>
-<summary>Claude Desktop Installation</summary>
+Representative tools:
 
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS or `%APPDATA%/Claude/claude_desktop_config.json` on Windows):
+- `triage_player_log`
+- `mod_ready_check`
+- `scan_dlc_dependencies`
+- `audit_scope`
+- `validate_def_against_runtime`
+- `triage_patch_conflicts`
+- `analyze_mod_compatibility`
+- `get_mod_dependencies`
+- `get_patch_conflicts`
+- `get_def_inheritance_tree`
+- `compare_defs`
+- `suggest_load_order`
 
-```json
-{
-  "mcpServers": {
-    "rimworld": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-v", "/path/to/your/rimworld:/rimworld:ro",
-        "ghcr.io/cryptiklemur/rimworld-mcp-server:latest",
-        "--mod-dirs=/rimworld/Mods"
-      ]
-    }
-  }
-}
-```
+Your MCP client can inspect the full tool list directly.
 
-</details>
-
-<details>
-<summary>Continue.dev Installation</summary>
-
-Add to your Continue configuration:
-
-```json
-{
-  "mcpServers": {
-    "rimworld": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-v", "/path/to/your/rimworld:/rimworld:ro",
-        "ghcr.io/cryptiklemur/rimworld-mcp-server:latest",
-        "--mod-dirs=/rimworld/Mods"
-      ]
-    }
-  }
-}
-```
-
-</details>
-
-## Setup
-
-### Docker (Recommended)
-
-1. **Pull the image:**
-   ```bash
-   docker pull ghcr.io/cryptiklemur/rimworld-mcp-server:latest
-   ```
-
-2. **Run with Docker:**
-   ```bash
-   docker run -v "/path/to/rimworld:/rimworld:ro" ghcr.io/cryptiklemur/rimworld-mcp-server:latest
-   ```
-
-3. **With extra mod directories:**
-   ```bash
-   docker run \
-     -v "/path/to/rimworld:/rimworld:ro" \
-     -v "/path/to/workshop:/workshop:ro" \
-     ghcr.io/cryptiklemur/rimworld-mcp-server:latest \
-     --rimworld-path=/rimworld --extra-mod-dirs=/workshop
-   ```
-
-### Local Development
-
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-2. **Build the server:**
-   ```bash
-   npm run build
-   ```
-
-3. **Run the server:**
-   ```bash
-   tsx src/index.ts --rimworld-path="/path/to/rimworld"
-   ```
-   
-   Or using Node with the built version:
-   ```bash
-   node dist/index.js --rimworld-path="/path/to/rimworld"
-   ```
-
-## Configuration
-
-The server uses command-line arguments for configuration:
-
-### Required Arguments
-
-- **`--rimworld-path=<path>`** - Path to your RimWorld installation directory
-  - Windows Steam: `"C:\Program Files (x86)\Steam\steamapps\common\RimWorld"`
-  - Windows Epic: `"C:\Program Files\Epic Games\RimWorld"`
-  - Linux Steam: `~/.steam/steam/steamapps/common/RimWorld`
-  - macOS Steam: `~/Library/Application\ Support/Steam/steamapps/common/RimWorld`
-
-### Optional Arguments
-
-- **`--mod-dirs=<paths>`** - Comma-separated list of mod directories to scan
-- **`--server-name=<name>`** - Server name (default: rimworld-defs)
-- **`--server-version=<version>`** - Server version (default: 3.0.0)
-- **`--mod-concurrency=<n>`** - Number of mods to process simultaneously (default: 4)
-- **`--xml-batch-size=<n>`** - Number of XML files to process in parallel (default: 8)
-- **`--mod-batch-size=<n>`** - Number of mods to load in parallel (default: 10)
-- **`--log-level=<level>`** - Logging level: debug, info, warn, error (default: info)
-- **`--disable-patch-validation`** - Disable patch validation
-- **`--disable-conflict-detection`** - Disable conflict detection
-- **`--disable-reference-analysis`** - Disable reference analysis
-- **`--disable-inheritance-resolution`** - Disable inheritance resolution
-- **`--help, -h`** - Show help message
-
-### Examples
+## Build From Source
 
 ```bash
-# Basic usage
-tsx src/index.ts --rimworld-path="/path/to/rimworld"
-
-# With mod directories
-tsx src/index.ts --rimworld-path="/path/to/rimworld" --mod-dirs="/path/to/workshop,/path/to/custom"
-
-# Performance tuning
-tsx src/index.ts --rimworld-path="/path/to/rimworld" --mod-concurrency=8 --xml-batch-size=16
-
-# Docker examples
-docker run -v "/path/to/rimworld:/rimworld:ro" ghcr.io/cryptiklemur/rimworld-mcp-server:latest --mod-dirs=/rimworld/Mods
-
-# Docker with custom arguments
-docker run -v "/path/to/rimworld:/rimworld:ro" -v "/path/to/workshop:/workshop:ro" ghcr.io/cryptiklemur/rimworld-mcp-server:latest --rimworld-path=/rimworld --mod-dirs=/workshop --mod-concurrency=8
+git clone https://github.com/cryptiklemur/rimworld-modder-mcp.git
+cd rimworld-modder-mcp
+dotnet build src/RimWorldModderMcp/RimWorldModderMcp.csproj
+dotnet run --project src/RimWorldModderMcp/RimWorldModderMcp.csproj -- --rimworld-path="/path/to/RimWorld"
 ```
 
-## Features
+## Release
 
-- **Parallel Processing**: Optimized for speed with configurable concurrency
-- **Mod Loading**: Automatic discovery and loading of Core, DLC, and specified mod directories
-- **Definition Parsing**: Full XML definition parsing with type categorization
-- **Patch System**: Complete patch application with conflict detection
-- **Reference Analysis**: Dependency graph building and circular dependency detection
-- **Conflict Detection**: Comprehensive mod conflict analysis
-- **Inheritance Resolution**: Parent-child definition resolution
+`semantic-release` publishes:
 
-## Tools Available
+- the NuGet `.NET tool`
+- the `.nupkg` as a GitHub release asset
+- the runtime-only zip bundle
+- the `.sha256` checksum
 
-The MCP server provides the following tools:
+Useful commands:
 
-- `getDef` - Get specific definition by name
-- `getDefsByType` - Get all definitions of a specific type
-- `searchDefs` - Search definitions by content
-- `getDefsByMod` - Get all definitions from a specific mod
-- `getReferences` - Get reference information for a definition
-- `getDependencyChain` - Get dependency chain for a definition
-- `getPatchHistory` - Get patch history for a definition
-- `getConflicts` - Get conflict information
-- `getPatchCoverage` - Get patch coverage for a mod
-- `simulateModRemoval` - Simulate the impact of removing a mod
-- `suggestLoadOrder` - Get load order suggestions
-- `getModList` - Get list of all loaded mods
-- `getStatistics` - Get server statistics
-
-## Performance
-
-The server is optimized for large mod collections:
-- **Parallel mod loading**: Up to 10x faster for many mods
-- **Parallel XML processing**: 5-8x faster per mod
-- **Combined scanning**: 50% reduction in file system operations
-- **Configurable concurrency**: Tunable for your system
-
-## Development
-
-Build the project:
 ```bash
-npm run build
+npm ci
+npm run release:dry-run
+npm run release:prepare-artifacts -- 1.2.5
 ```
 
-The compiled JavaScript will be in the `dist/` directory.
+Secrets used by CI:
+
+- `NUGET_API_KEY` for NuGet publish
+- `SEMANTIC_RELEASE_TOKEN` if you want release-created tags to trigger other workflows

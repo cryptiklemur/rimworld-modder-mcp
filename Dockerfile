@@ -1,50 +1,47 @@
 # Build stage
-FROM node:20-alpine AS builder
-
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy solution and project files first for better layer caching
+# These files change less frequently than source code
+COPY *.sln .
+COPY src/RimWorldModderMcp/*.csproj ./src/RimWorldModderMcp/
 
-# Install dependencies
-RUN npm ci
+# Restore dependencies - this layer will be cached if project files don't change
+RUN dotnet restore
 
-# Copy source code
-COPY tsconfig.json ./
-COPY src ./src
+# Copy source code last - this changes most frequently
+COPY src/ ./src/
 
-# Build the application
-RUN npm run build
+# Build and publish the application
+RUN dotnet publish src/RimWorldModderMcp/RimWorldModderMcp.csproj -c Release -o /app/publish
 
 # Runtime stage
-FROM node:20-alpine
-
+FROM mcr.microsoft.com/dotnet/runtime:10.0-alpine AS runtime
 WORKDIR /app
 
-# Copy package files and install production dependencies only
-COPY package*.json ./
-RUN npm ci --only=production
+# Install all system packages in a single layer for better caching
+# Combine related package installations to minimize layers
+RUN apk add --no-cache \
+    icu-libs
 
-# Copy built application from builder stage
-COPY --from=builder /app/dist ./dist
+# Create user in a single layer
+RUN addgroup -g 1001 -S dotnet && \
+    adduser -S dotnet -u 1001
 
-# Create a non-root user to run the application
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+# Copy application files before user switch for proper ownership
+COPY --from=build /app/publish .
+RUN chown -R dotnet:dotnet /app
 
-# Set ownership
-RUN chown -R nodejs:nodejs /app
+# Switch to non-root user
+USER dotnet
 
-USER nodejs
+# Set environment variables in a single layer
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
-# The RimWorld path will be mounted as a volume
+# Volume declaration
 VOLUME ["/rimworld"]
 
-# Default environment variables
-ENV NODE_ENV=production
-
-# The server uses stdio for MCP communication
-ENTRYPOINT ["node", "dist/index.js"]
-
-# Default CMD can be overridden with runtime arguments
-CMD ["--rimworld-path=/rimworld"]
+# Runtime configuration
+ENTRYPOINT ["dotnet", "RimWorldModderMcp.dll"]
+CMD ["--rimworld-path=/rimworld", "--mod-dirs=/rimworld/Mods,/workshop"]

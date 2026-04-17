@@ -1,13 +1,64 @@
-node_modules
-dist
+# Git
 .git
 .gitignore
+.gitattributes
 .github
-README.md
-.env*
+
+# Documentation
+*.md
+README*
+CHANGELOG*
+LICENSE*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# .NET build outputs
+bin/
+obj/
+out/
+publish/
 *.log
-coverage
-.nyc_output
-.vscode
-.idea
+
+# Test and local files
+test-local.md
+local-mcp-config.json
+
+# Environment and configuration
+.env*
+
+# Node.js (legacy from TypeScript version)
+node_modules/
+dist/
+coverage/
+.nyc_output/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Claude context files
+.claude/
+
+# Package files
+*.nupkg
+*.snupkg
+
+# Visual Studio cache/options directory
+.vs/

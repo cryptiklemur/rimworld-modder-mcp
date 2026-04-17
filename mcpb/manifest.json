@@ -1,0 +1,319 @@
+{
+  "dxt_version": "0.1",
+  "name": "rimworld-modder-mcp",
+  "display_name": "RimWorld Modder MCP",
+  "version": "0.0.0-local",
+  "description": "Comprehensive MCP server for RimWorld mod analysis, validation, and compact modding workflows",
+  "long_description": "A high-performance C#/.NET MCP server for RimWorld defs, patches, compatibility analysis, balance inspection, and token-aware modding workflows. It focuses on loaded XML and patch data, with compact tools for readiness checks, DLC compatibility scans, Player.log triage, patch hotspots, and coverage reporting.",
+  "author": {
+    "name": "cryptiklemur",
+    "url": "https://github.com/cryptiklemur/rimworld-modder-mcp"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cryptiklemur/rimworld-modder-mcp"
+  },
+  "homepage": "https://github.com/cryptiklemur/rimworld-modder-mcp",
+  "documentation": "https://github.com/cryptiklemur/rimworld-modder-mcp#readme",
+  "support": "https://github.com/cryptiklemur/rimworld-modder-mcp/issues",
+  "license": "MIT",
+  "keywords": [
+    "rimworld",
+    "modding",
+    "xml",
+    "definitions",
+    "game-development",
+    "patch-analysis",
+    "mod-compatibility",
+    "game-mechanics",
+    "load-order",
+    "translation",
+    "performance-optimization",
+    "development-tools"
+  ],
+  "server": {
+    "type": "binary",
+    "entry_point": "RimWorldModderMcp.dll",
+    "mcp_config": {
+      "command": "dotnet",
+      "args": [
+        "${__dirname}/RimWorldModderMcp.dll",
+        "--rimworld-path=${user_config.rimworld_path}",
+        "--mod-dirs=${user_config.mod_directories}",
+        "--log-level=${user_config.log_level}",
+        "--mod-concurrency=${user_config.mod_concurrency}"
+      ]
+    }
+  },
+  "tools": [
+    {
+      "name": "get_def",
+      "description": "Get a specific RimWorld definition by name"
+    },
+    {
+      "name": "get_defs_by_type",
+      "description": "Get all definitions of a specific type (e.g. ThingDef, PawnKindDef)"
+    },
+    {
+      "name": "search_defs",
+      "description": "Search for definitions containing a specific term in their name or content"
+    },
+    {
+      "name": "get_mod_list",
+      "description": "Get list of all loaded mods with their information and load order"
+    },
+    {
+      "name": "get_statistics",
+      "description": "Get comprehensive statistics about loaded data including mod counts, def counts, loading status"
+    },
+    {
+      "name": "get_conflicts",
+      "description": "Get mod conflicts with optional filtering by mod, type, or severity"
+    },
+    {
+      "name": "get_references",
+      "description": "Find all references to a specific definition (what uses this item/pawn/etc.)"
+    },
+    {
+      "name": "analyze_load_order",
+      "description": "Analyze mod load order and suggest optimizations"
+    },
+    {
+      "name": "get_dependency_tree",
+      "description": "Show mod dependencies and conflicts in tree format"
+    },
+    {
+      "name": "validate_xml",
+      "description": "Validate XML definitions for syntax and schema errors"
+    },
+    {
+      "name": "get_def_inheritance_tree",
+      "description": "Show the complete inheritance chain for a definition"
+    },
+    {
+      "name": "get_patches_for_def",
+      "description": "Get all patches that modify a specific definition"
+    },
+    {
+      "name": "validate_def",
+      "description": "Check if a definition follows proper XML schema/rules"
+    },
+    {
+      "name": "get_def_dependencies",
+      "description": "Find what other defs this definition references"
+    },
+    {
+      "name": "compare_defs",
+      "description": "Compare two definitions and show differences"
+    },
+    {
+      "name": "get_abstract_defs",
+      "description": "Get all abstract definitions that can be inherited from"
+    },
+    {
+      "name": "analyze_mod_compatibility",
+      "description": "Deep compatibility analysis between specific mods"
+    },
+    {
+      "name": "get_mod_dependencies",
+      "description": "Show mod dependency tree and load order requirements"
+    },
+    {
+      "name": "find_broken_references",
+      "description": "Find broken references in mod XMLs"
+    },
+    {
+      "name": "validate_mod_structure",
+      "description": "Check if mod follows proper directory/file structure"
+    },
+    {
+      "name": "get_patch_conflicts",
+      "description": "Find conflicting patches between mods"
+    },
+    {
+      "name": "trace_patch_application",
+      "description": "Show how patches are applied to a definition"
+    },
+    {
+      "name": "get_patch_performance",
+      "description": "Analyze patch complexity and performance impact"
+    },
+    {
+      "name": "validate_xpath",
+      "description": "Test XPath expressions against definitions"
+    },
+    {
+      "name": "write_xpath",
+      "description": "Write XPath expressions that target a definition"
+    },
+    {
+      "name": "preview_patch",
+      "description": "Show what a patch would look like in XML format"
+    },
+    {
+      "name": "preview_patch_result",
+      "description": "Show what a definition looks like after patches"
+    },
+    {
+      "name": "find_duplicate_content",
+      "description": "Locate duplicate/redundant definitions"
+    },
+    {
+      "name": "suggest_optimizations",
+      "description": "Recommend performance improvements"
+    },
+    {
+      "name": "analyze_texture_usage",
+      "description": "Check texture sizes and formats"
+    },
+    {
+      "name": "validate_localization",
+      "description": "Check translation completeness"
+    },
+    {
+      "name": "find_unused_assets",
+      "description": "Locate unused textures/sounds/etc"
+    },
+    {
+      "name": "lint_xml",
+      "description": "Check XML formatting and common issues"
+    },
+    {
+      "name": "generate_documentation",
+      "description": "Auto-generate mod documentation"
+    },
+    {
+      "name": "create_compatibility_report",
+      "description": "Generate detailed compatibility analysis"
+    },
+    {
+      "name": "export_definitions",
+      "description": "Export filtered definitions to various formats"
+    },
+    {
+      "name": "calculate_market_value",
+      "description": "Compute item market values with all modifiers"
+    },
+    {
+      "name": "analyze_balance",
+      "description": "Compare weapon/item stats across mods"
+    },
+    {
+      "name": "get_recipe_chains",
+      "description": "Show crafting dependency chains"
+    },
+    {
+      "name": "find_research_paths",
+      "description": "Calculate research unlock paths"
+    },
+    {
+      "name": "get_biome_compatibility",
+      "description": "Check what spawns in different biomes"
+    },
+    {
+      "name": "calculate_room_requirements",
+      "description": "Analyze room/building requirements"
+    },
+    {
+      "name": "suggest_def_name",
+      "description": "Suggest proper DefNames following conventions"
+    },
+    {
+      "name": "check_naming_conventions",
+      "description": "Validate naming follows RimWorld patterns"
+    },
+    {
+      "name": "find_translation_keys",
+      "description": "Extract all translatable strings"
+    },
+    {
+      "name": "generate_mod_metadata",
+      "description": "Create proper About.xml and metadata"
+    },
+    {
+      "name": "check_version_compatibility",
+      "description": "Validate against specific RimWorld versions"
+    },
+    {
+      "name": "suggest_load_order",
+      "description": "Recommend optimal mod load order"
+    },
+    {
+      "name": "triage_player_log",
+      "description": "Group RimWorld Player.log issues into compact debugging buckets"
+    },
+    {
+      "name": "validate_def_against_runtime",
+      "description": "Validate a loaded def against parent, reference, and class-like runtime signals"
+    },
+    {
+      "name": "scan_dlc_dependencies",
+      "description": "Scan loaded mods for references to DLC content outside an allowed compatibility target"
+    },
+    {
+      "name": "audit_scope",
+      "description": "Produce a compact audit for a mod, def, def type, or path scope"
+    },
+    {
+      "name": "triage_patch_conflicts",
+      "description": "Group XPath collisions and patch hotspots into compact conflict clusters"
+    },
+    {
+      "name": "content_coverage_report",
+      "description": "Report compact coverage signals for loaded mod content"
+    },
+    {
+      "name": "mod_ready_check",
+      "description": "Run a compact readiness check for one mod or all loaded custom mods"
+    }
+  ],
+  "user_config": {
+    "rimworld_path": {
+      "type": "directory",
+      "title": "RimWorld Installation Path",
+      "description": "Path to your RimWorld installation directory",
+      "required": true,
+      "default": ""
+    },
+    "mod_directories": {
+      "type": "string",
+      "title": "Additional Mod Directories",
+      "description": "Comma-separated list of additional mod directories to scan (e.g., Workshop directories)",
+      "required": false,
+      "default": ""
+    },
+    "mods_config_path": {
+      "type": "file",
+      "title": "ModsConfig.xml Path",
+      "description": "Path to RimWorld's ModsConfig.xml file to filter only enabled mods (usually in %USERPROFILE%\\AppData\\LocalLow\\Ludeon Studios\\RimWorld by Ludeon Studios\\Config\\ModsConfig.xml)",
+      "required": false,
+      "default": ""
+    },
+    "log_level": {
+      "type": "string",
+      "title": "Log Level",
+      "description": "Logging level for debugging (Debug, Information, Warning, Error)",
+      "required": false,
+      "default": "Information"
+    },
+    "mod_concurrency": {
+      "type": "number",
+      "title": "Processing Concurrency",
+      "description": "Number of mods to process simultaneously",
+      "required": false,
+      "default": 4,
+      "min": 1,
+      "max": 32
+    },
+    "rimworld_version": {
+      "type": "string",
+      "title": "RimWorld Version",
+      "description": "RimWorld version for mod compatibility",
+      "required": false,
+      "default": "1.6"
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"]
+  }
+}

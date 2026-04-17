@@ -2,6 +2,16 @@
 /tmp
 /out-tsc
 /dist
+/artifacts
+/temp
+/mcpb/*
+!/mcpb/manifest.json
+/src/**/bin
+/src/**/obj
+/RimWorldMcpServer.deps.json
+/RimWorldMcpServer.dll
+/RimWorldMcpServer.exe
+/RimWorldMcpServer.runtimeconfig.json
 
 # Dependencies
 /node_modules
@@ -18,3 +28,9 @@ yarn-error.log*
 
 # IDE
 .vscode/*
+.idea/
+*.DotSettings.user
+.DS_Store
+.codex
+test-local.md
+*.mcpb
