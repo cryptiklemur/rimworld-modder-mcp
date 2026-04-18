@@ -9,7 +9,7 @@ namespace RimWorldModderMcp.Tools.RimWorld;
 
 public static class ModdingAssistanceTools
 {
-    [McpServerTool, Description("Suggest proper DefNames following RimWorld naming conventions.")]
+    [McpServerTool, Description("Use when you are naming new content and want candidate DefNames that follow RimWorld conventions.")]
     public static string SuggestDefName(
         ServerData serverData,
         [Description("The type of definition (ThingDef, PawnKindDef, etc.)")] string defType,
@@ -101,7 +101,7 @@ public static class ModdingAssistanceTools
         });
     }
 
-    [McpServerTool, Description("Validate naming follows RimWorld patterns and conventions.")]
+    [McpServerTool, Description("Use when you want to validate a proposed DefName before committing to it.")]
     public static string CheckNamingConventions(
         ServerData serverData,
         [Description("The DefName to check")] string defName,
@@ -220,7 +220,7 @@ public static class ModdingAssistanceTools
         });
     }
 
-    [McpServerTool, Description("Extract all translatable strings from mod definitions.")]
+    [McpServerTool, Description("Use when you need a translation-key inventory from a mod's loaded content.")]
     public static string FindTranslationKeys(
         ServerData serverData,
         [Description("Optional: filter to specific mod packageId")] string? modPackageId = null,
@@ -315,7 +315,7 @@ public static class ModdingAssistanceTools
         });
     }
 
-    [McpServerTool, Description("Create proper About.xml and metadata files for a mod.")]
+    [McpServerTool, Description("Use when you want scaffolded About.xml-style metadata for a mod release or new project.")]
     public static string GenerateModMetadata(
         ServerData serverData,
         [Description("The mod name")] string modName,
@@ -408,7 +408,7 @@ public static class ModdingAssistanceTools
         });
     }
 
-    [McpServerTool, Description("Validate mod compatibility against specific RimWorld versions.")]
+    [McpServerTool, Description("Use when you want compatibility hints for a target RimWorld version.")]
     public static string CheckVersionCompatibility(
         ServerData serverData,
         [Description("Optional: specific mod packageId to check")] string? modPackageId = null,
@@ -463,7 +463,7 @@ public static class ModdingAssistanceTools
         });
     }
 
-    [McpServerTool, Description("Recommend optimal mod load order based on dependencies and conflicts.")]
+    [McpServerTool, Description("Use when you want a recommended load order for a set of mods based on dependencies and conflicts.")]
     public static string SuggestLoadOrder(
         ServerData serverData,
         [Description("Optional: comma-separated list of specific mod packageIds to analyze")] string? modPackageIds = null)

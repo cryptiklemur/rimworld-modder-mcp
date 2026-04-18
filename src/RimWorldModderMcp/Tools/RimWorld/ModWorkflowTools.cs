@@ -61,7 +61,7 @@ public static class ModWorkflowTools
     private sealed record LogIncident(string Category, string Signature, string Headline, string Text, IReadOnlyList<string> ContextLines, IReadOnlyList<string> MentionedDefs, IReadOnlyList<string> MentionedFiles, IReadOnlyList<string> MentionedMods);
     private sealed record LogGroup(string Category, string Signature, string Headline, int Count, IReadOnlyList<string> MentionedDefs, IReadOnlyList<string> MentionedFiles, IReadOnlyList<string> MentionedMods);
 
-    [McpServerTool, Description("Group RimWorld Player.log problems into compact issue buckets for fast debugging.")]
+    [McpServerTool, Description("Use when Player.log has startup or runtime errors and you want grouped causes quickly.")]
     public static string TriagePlayerLog(
         ServerData serverData,
         ProjectContext projectContext,
@@ -135,7 +135,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Validate a loaded def against parent, reference, and class-like runtime signals without in-process decompilation.")]
+    [McpServerTool, Description("Use when a loaded def may disagree with parent, reference, or class-like runtime expectations.")]
     public static string ValidateDefAgainstRuntime(
         ServerData serverData,
         [Description("Definition name to validate")] string defName)
@@ -251,7 +251,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Scan loaded mods for references to DLC content outside an allowed compatibility target.")]
+    [McpServerTool, Description("Use when you need to confirm a mod only targets allowed official content.")]
     public static string ScanDlcDependencies(
         ServerData serverData,
         ProjectContext projectContext,
@@ -305,7 +305,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Produce a compact, token-aware audit of a mod, def, def type, or path scope.")]
+    [McpServerTool, Description("Use when you want a compact audit of one mod, def, def type, or path.")]
     public static string AuditScope(
         ServerData serverData,
         [Description("Scope type: mod, def, def_type, or path")] string scopeType,
@@ -370,7 +370,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Group XPath collisions and patch hotspots into compact conflict clusters.")]
+    [McpServerTool, Description("Use when you want clustered XPath conflicts instead of raw patch lists.")]
     public static string TriagePatchConflicts(
         ServerData serverData,
         [Description("Optional: only include hotspots involving this mod package ID")] string? modPackageId = null,
@@ -411,7 +411,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Report compact coverage signals for loaded mod content, including references, patches, overrides, and broken refs.")]
+    [McpServerTool, Description("Use when you want a compact view of overrides, references, patches, and broken links for a mod.")]
     public static string ContentCoverageReport(
         ServerData serverData,
         [Description("Optional: specific mod package ID to scope to")] string? modPackageId = null,
@@ -529,7 +529,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Run a compact readiness check for one mod or all loaded custom mods.")]
+    [McpServerTool, Description("Use when you want a release-readiness verdict for one mod or all loaded custom mods.")]
     public static string ModReadyCheck(
         ServerData serverData,
         ProjectContext projectContext,
@@ -699,7 +699,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Check project config, RimWorld paths, git state, and loaded-data basics for this workspace.")]
+    [McpServerTool, Description("Use when setup is unclear and you need to verify paths, config, git state, and server readiness.")]
     public static string Doctor(
         ProjectContext projectContext,
         ServerData serverData,
@@ -859,7 +859,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Audit only the changed files in the current repo or an explicit file list.")]
+    [McpServerTool, Description("Use when you only want audit findings for files changed in git or an explicit path list.")]
     public static string AuditChangedFiles(
         ServerData serverData,
         ProjectContext projectContext,
@@ -931,7 +931,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Validate only changed defs and patches from the repo or an explicit file list.")]
+    [McpServerTool, Description("Use when you want pre-commit validation for only changed defs and patches.")]
     public static string ValidateChangedContent(
         ServerData serverData,
         ProjectContext projectContext,
@@ -1092,7 +1092,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Compare two Player.log files and show new, resolved, and regressed issue groups.")]
+    [McpServerTool, Description("Use when you want current vs previous Player.log differences grouped into new, resolved, and regressed issues.")]
     public static string ComparePlayerLogs(
         ServerData serverData,
         [Description("Path to the newer Player.log file")] string logPath,
@@ -1172,7 +1172,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Find high-density XML patch hotspots, including repeated single-mod edits and cross-mod collisions.")]
+    [McpServerTool, Description("Use when you want the busiest or riskiest XML patch targets in the loadout.")]
     public static string FindPatchHotspots(
         ServerData serverData,
         [Description("Optional: only include hotspots involving this mod package ID")] string? modPackageId = null,
@@ -1214,7 +1214,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Explain why a broken DefName reference is likely failing and show the nearest loaded alternatives.")]
+    [McpServerTool, Description("Use when a missing def reference needs likely causes and nearby loaded alternatives.")]
     public static string BrokenReferenceExplainer(
         ServerData serverData,
         [Description("Broken reference or target DefName to explain")] string reference,
@@ -1347,7 +1347,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Search defs, patches, and mods inside a specific scope instead of the whole loaded dataset.")]
+    [McpServerTool, Description("Use when you want search results limited to one mod, def, def type, or path.")]
     public static string ScopeSearch(
         ServerData serverData,
         [Description("Scope type: mod, def, def_type, or path")] string scopeType,
@@ -1446,7 +1446,7 @@ public static class ModWorkflowTools
         });
     }
 
-    [McpServerTool, Description("Estimate what moving a mod before or after another mod would impact.")]
+    [McpServerTool, Description("Use when you want to estimate what moving a mod before or after another would affect.")]
     public static string LoadOrderImpactReport(
         ServerData serverData,
         [Description("Mod package ID to move")] string modPackageId,

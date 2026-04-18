@@ -8,7 +8,7 @@ namespace RimWorldModderMcp.Tools.GameMechanics;
 
 public static class GameMechanicsTools
 {
-    [McpServerTool, Description("Compare weapon/item stats across mods.")]
+    [McpServerTool, Description("Use when you want stat comparisons across weapons, items, or other defs.")]
     public static string AnalyzeBalance(
         ServerData serverData,
         [Description("Definition type to analyze (WeaponMelee, WeaponRanged, ThingDef)")] string defType,
@@ -71,7 +71,7 @@ public static class GameMechanicsTools
         });
     }
 
-    [McpServerTool, Description("Show crafting dependency chains.")]
+    [McpServerTool, Description("Use when you want ingredient or product crafting chains for one item.")]
     public static string GetRecipeChains(
         ServerData serverData,
         [Description("Target item defName to trace chains for")] string targetDefName,
@@ -117,7 +117,7 @@ public static class GameMechanicsTools
         });
     }
 
-    [McpServerTool, Description("Calculate research unlock paths.")]
+    [McpServerTool, Description("Use when you want the research path needed to unlock a target project.")]
     public static string FindResearchPaths(
         ServerData serverData,
         [Description("Target research defName to find paths to")] string targetResearch,
@@ -153,7 +153,7 @@ public static class GameMechanicsTools
         });
     }
 
-    [McpServerTool, Description("Check what spawns in different biomes.")]
+    [McpServerTool, Description("Use when you want biome spawn or content compatibility information.")]
     public static string GetBiomeCompatibility(
         ServerData serverData,
         [Description("Optional: specific biome defName to analyze")] string? biomeDefName = null,
@@ -188,7 +188,7 @@ public static class GameMechanicsTools
         });
     }
 
-    [McpServerTool, Description("Analyze room/building requirements.")]
+    [McpServerTool, Description("Use when you want building or room requirement details for planning or balancing.")]
     public static string CalculateRoomRequirements(
         ServerData serverData,
         [Description("Building or room defName to analyze")] string targetDefName,

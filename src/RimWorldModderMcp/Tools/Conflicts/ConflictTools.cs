@@ -8,7 +8,7 @@ namespace RimWorldModderMcp.Tools.Conflicts;
 
 public static class ConflictTools
 {
-    [McpServerTool, Description("Get mod conflicts with optional filtering by mod, type, or severity.")]
+    [McpServerTool, Description("Use when you need stored conflict records filtered by mod, conflict type, or severity.")]
     public static string GetConflicts(
         ServerData serverData,
         ConflictDetector conflictDetector,

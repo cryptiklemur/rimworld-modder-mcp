@@ -294,30 +294,23 @@ Run `rimworld-modder-mcp --help` for the full argument list.
 - `handleResults`: store a retrievable result handle
 - `get_result_by_handle`: expand a stored handle in a long-lived MCP session
 
-## Tool Highlights
+## Core Workflow Tools
 
-Representative tools:
+Start here in most mod repos:
 
-- `doctor`
-- `audit_changed_files`
-- `validate_changed_content`
-- `compare_player_logs`
-- `find_patch_hotspots`
-- `broken_reference_explainer`
-- `scope_search`
-- `load_order_impact_report`
-- `triage_player_log`
-- `mod_ready_check`
-- `scan_dlc_dependencies`
-- `audit_scope`
-- `validate_def_against_runtime`
-- `triage_patch_conflicts`
-- `analyze_mod_compatibility`
-- `get_mod_dependencies`
-- `get_patch_conflicts`
-- `get_def_inheritance_tree`
-- `compare_defs`
-- `suggest_load_order`
+- Setup and environment: `doctor`
+- Changed-file review before commit: `audit_changed_files`, `validate_changed_content`
+- Runtime debugging: `triage_player_log`, `compare_player_logs`, `broken_reference_explainer`
+- Release/readiness checks: `mod_ready_check`, `scan_dlc_dependencies`
+- Patch debugging: `triage_patch_conflicts`, `find_patch_hotspots`, `validate_xpath`, `write_xpath`, `preview_patch`, `preview_patch_result`
+- Scoped inspection: `scope_search`, `audit_scope`, `content_coverage_report`
+- Load-order impact: `suggest_load_order`, `load_order_impact_report`
+
+Lower-level lookup tools are still available when you need exact details:
+
+- Def lookup: `get_def`, `search_defs`, `get_defs_by_type`, `get_def_inheritance_tree`, `compare_defs`
+- References and patches: `get_references`, `get_def_dependencies`, `get_patches_for_def`, `get_patch_conflicts`
+- Mod analysis: `analyze_mod_compatibility`, `get_mod_dependencies`, `find_broken_references`, `validate_mod_structure`
 
 Your MCP client can inspect the full tool list directly.
 

@@ -9,7 +9,7 @@ namespace RimWorldModderMcp.Tools.RimWorld;
 
 public static class ValidationTools
 {
-    [McpServerTool, Description("Check if a definition follows proper XML schema/rules.")]
+    [McpServerTool, Description("Use when one loaded definition looks wrong and you want XML and structure checks for that def.")]
     public static string ValidateDef(
         ServerData serverData,
         [Description("The name of the definition to validate")] string defName)
@@ -61,7 +61,7 @@ public static class ValidationTools
         });
     }
 
-    [McpServerTool, Description("Find what other defs this definition references.")]
+    [McpServerTool, Description("Use when you need the outgoing references and dependencies from one definition.")]
     public static string GetDefDependencies(
         ServerData serverData,
         [Description("The name of the definition to analyze")] string defName)
@@ -105,7 +105,7 @@ public static class ValidationTools
         });
     }
 
-    [McpServerTool, Description("Validate and test XPath expressions against RimWorld definitions.")]
+    [McpServerTool, Description("Use when you want to test whether an XPath is valid and what it will match before writing a patch.")]
     public static string ValidateXPath(
         ServerData serverData,
         [Description("The XPath expression to validate and test")] string xpath,

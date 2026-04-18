@@ -7,7 +7,7 @@ namespace RimWorldModderMcp.Tools.RimWorld;
 
 public static class ModAnalysisTools
 {
-    [McpServerTool, Description("Deep compatibility analysis between specific mods.")]
+    [McpServerTool, Description("Use when you want a pairwise compatibility check between two specific mods.")]
     public static string AnalyzeModCompatibility(
         ServerData serverData,
         [Description("First mod package ID")] string modPackageId1,
@@ -35,7 +35,7 @@ public static class ModAnalysisTools
         return JsonSerializer.Serialize(analysis);
     }
 
-    [McpServerTool, Description("Show mod dependency tree and load order requirements.")]
+    [McpServerTool, Description("Use when you need dependency, incompatibility, and ordering requirements for one mod.")]
     public static string GetModDependencies(
         ServerData serverData,
         [Description("Mod package ID to analyze")] string modPackageId)
@@ -58,7 +58,7 @@ public static class ModAnalysisTools
         return JsonSerializer.Serialize(dependencies);
     }
 
-    [McpServerTool, Description("Find broken references in mod XMLs.")]
+    [McpServerTool, Description("Use when you want unresolved DefName references across one mod or the whole loadout.")]
     public static string FindBrokenReferences(
         ServerData serverData,
         [Description("Optional: specific mod package ID to check")] string? modPackageId = null)
@@ -102,7 +102,7 @@ public static class ModAnalysisTools
         });
     }
 
-    [McpServerTool, Description("Check if mod follows proper directory/file structure.")]
+    [McpServerTool, Description("Use when you want to verify a mod's folders and files match common RimWorld structure.")]
     public static string ValidateModStructure(
         ServerData serverData,
         [Description("Mod package ID to validate")] string modPackageId)

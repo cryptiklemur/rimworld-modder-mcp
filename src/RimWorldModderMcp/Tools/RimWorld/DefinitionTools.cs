@@ -8,7 +8,7 @@ namespace RimWorldModderMcp.Tools.RimWorld;
 
 public static class DefinitionTools
 {
-    [McpServerTool, Description("Get a specific RimWorld definition by name.")]
+    [McpServerTool, Description("Use when you know the exact defName and want the loaded definition payload.")]
     public static string GetDef(
         ServerData serverData,
         [Description("The name of the definition to retrieve")] string defName)
@@ -44,7 +44,7 @@ public static class DefinitionTools
         });
     }
 
-    [McpServerTool, Description("Get all RimWorld definitions of a specific type.")]
+    [McpServerTool, Description("Use when you need a list of loaded definitions for one def type.")]
     public static string GetDefsByType(
         ServerData serverData,
         [Description("The type of definitions to retrieve (e.g., ThingDef, RecipeDef)")] string type)
@@ -70,7 +70,7 @@ public static class DefinitionTools
         });
     }
 
-    [McpServerTool, Description("Search for RimWorld definitions by name or content.")]
+    [McpServerTool, Description("Use when you do not know the exact defName and need to search loaded definitions by term.")]
     public static string SearchDefs(
         ServerData serverData,
         [Description("The search term to look for in definition names or content")] string searchTerm,
@@ -129,7 +129,7 @@ public static class DefinitionTools
         return string.Empty;
     }
 
-    [McpServerTool, Description("Show the complete inheritance chain for a definition.")]
+    [McpServerTool, Description("Use when you need parent and abstract ancestry for one definition.")]
     public static string GetDefInheritanceTree(
         ServerData serverData,
         [Description("The name of the definition to analyze")] string defName)
@@ -179,7 +179,7 @@ public static class DefinitionTools
         });
     }
 
-    [McpServerTool, Description("Get all patches that modify a specific definition.")]
+    [McpServerTool, Description("Use when you want every XML patch that touches a specific definition.")]
     public static string GetPatchesForDef(
         ServerData serverData,
         [Description("The name of the definition to find patches for")] string defName)
@@ -217,7 +217,7 @@ public static class DefinitionTools
         });
     }
 
-    [McpServerTool, Description("Compare two definitions and show differences.")]
+    [McpServerTool, Description("Use when you want a side-by-side difference between two loaded definitions.")]
     public static string CompareDefs(
         ServerData serverData,
         [Description("First definition name")] string defName1,
@@ -256,7 +256,7 @@ public static class DefinitionTools
         });
     }
 
-    [McpServerTool, Description("Get all abstract definitions that can be inherited from.")]
+    [McpServerTool, Description("Use when you want abstract defs that can serve as inheritance bases.")]
     public static string GetAbstractDefs(
         ServerData serverData,
         [Description("Optional: filter by definition type")] string? type = null)

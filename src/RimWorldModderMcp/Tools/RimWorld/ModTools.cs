@@ -7,7 +7,7 @@ namespace RimWorldModderMcp.Tools.RimWorld;
 
 public static class ModTools
 {
-    [McpServerTool, Description("Get a list of all loaded RimWorld mods.")]
+    [McpServerTool, Description("Use when you need loaded mods, package IDs, and current load order.")]
     public static string GetModList(ServerData serverData)
     {
         if (serverData == null) return JsonSerializer.Serialize(new { error = "Server not initialized" });

@@ -8,7 +8,7 @@ namespace RimWorldModderMcp.Tools.Patch;
 
 public static class PatchAnalysisTools
 {
-    [McpServerTool, Description("Find conflicting patches between mods.")]
+    [McpServerTool, Description("Use when multiple mods may be patching the same target and you want raw patch conflicts.")]
     public static string GetPatchConflicts(
         ServerData serverData,
         [Description("Optional: specific XPath to analyze")] string? xpath = null)
@@ -45,7 +45,7 @@ public static class PatchAnalysisTools
         });
     }
 
-    [McpServerTool, Description("Show how patches are applied to a definition.")]
+    [McpServerTool, Description("Use when you need the order and effect of patches applied to one definition.")]
     public static string TracePatchApplication(
         ServerData serverData,
         [Description("Definition name to trace")] string defName)
@@ -93,7 +93,7 @@ public static class PatchAnalysisTools
         });
     }
 
-    [McpServerTool, Description("Analyze patch complexity and performance impact.")]
+    [McpServerTool, Description("Use when you want patch complexity and performance risk signals for one mod or the whole loadout.")]
     public static string GetPatchPerformance(
         ServerData serverData,
         [Description("Optional: specific mod package ID")] string? modPackageId = null)
@@ -124,7 +124,7 @@ public static class PatchAnalysisTools
         });
     }
 
-    [McpServerTool, Description("Write XPath expressions that target a definition.")]
+    [McpServerTool, Description("Use when you need candidate XPath selectors for a target definition or element.")]
     public static string WriteXPath(
         ServerData serverData,
         [Description("Definition name to target")] string defName,
@@ -147,7 +147,7 @@ public static class PatchAnalysisTools
         });
     }
 
-    [McpServerTool, Description("Show what a patch would look like in XML format.")]
+    [McpServerTool, Description("Use when you want a starter PatchOperation/XML snippet before editing a patch file.")]
     public static string PreviewPatch(
         ServerData serverData,
         [Description("XPath expression")] string xpath,
@@ -170,7 +170,7 @@ public static class PatchAnalysisTools
         });
     }
 
-    [McpServerTool, Description("Show what a definition looks like after patches.")]
+    [McpServerTool, Description("Use when you want to inspect a definition as if patches had already been applied.")]
     public static string PreviewPatchResult(
         ServerData serverData,
         [Description("Definition name")] string defName,

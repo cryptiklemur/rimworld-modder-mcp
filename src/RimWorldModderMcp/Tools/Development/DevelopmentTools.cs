@@ -17,7 +17,7 @@ public static class DevelopmentTools
         List<string> Conflicts,
         List<string> Recommendations);
 
-    [McpServerTool, Description("Check translation completeness.")]
+    [McpServerTool, Description("Use when you want missing or inconsistent translation coverage called out.")]
     public static string ValidateLocalization(
         ServerData serverData,
         [Description("Optional: specific mod package ID to check")] string? modPackageId = null,
@@ -51,7 +51,7 @@ public static class DevelopmentTools
         });
     }
 
-    [McpServerTool, Description("Locate unused textures/sounds/etc.")]
+    [McpServerTool, Description("Use when you want unused textures, sounds, or other assets identified.")]
     public static string FindUnusedAssets(
         ServerData serverData,
         [Description("Optional: specific mod package ID to check")] string? modPackageId = null,
@@ -88,7 +88,7 @@ public static class DevelopmentTools
         });
     }
 
-    [McpServerTool, Description("Check XML formatting and common issues.")]
+    [McpServerTool, Description("Use when you want formatting and common XML issue checks across a mod.")]
     public static string LintXml(
         ServerData serverData,
         [Description("Optional: specific mod package ID to check")] string? modPackageId = null,
@@ -132,7 +132,7 @@ public static class DevelopmentTools
         });
     }
 
-    [McpServerTool, Description("Auto-generate mod documentation.")]
+    [McpServerTool, Description("Use when you want a quick documentation summary for a mod's content.")]
     public static string GenerateDocumentation(
         ServerData serverData,
         [Description("Mod package ID to document")] string modPackageId,
@@ -161,7 +161,7 @@ public static class DevelopmentTools
         });
     }
 
-    [McpServerTool, Description("Generate detailed compatibility analysis.")]
+    [McpServerTool, Description("Use when you want a longer compatibility report for review or release notes.")]
     public static string CreateCompatibilityReport(
         ServerData serverData,
         [Description("Optional: specific mod package ID to analyze")] string? modPackageId = null)
@@ -225,7 +225,7 @@ public static class DevelopmentTools
         });
     }
 
-    [McpServerTool, Description("Export filtered definitions to various formats.")]
+    [McpServerTool, Description("Use when you need filtered definitions exported for external inspection or tooling.")]
     public static string ExportDefinitions(
         ServerData serverData,
         [Description("Export format (json, xml, csv, yaml)")] string format = "json",

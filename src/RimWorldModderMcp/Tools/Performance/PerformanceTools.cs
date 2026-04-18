@@ -8,7 +8,7 @@ namespace RimWorldModderMcp.Tools.Performance;
 
 public static class PerformanceTools
 {
-    [McpServerTool, Description("Locate duplicate/redundant definitions.")]
+    [McpServerTool, Description("Use when you want to spot overlapping or near-duplicate definitions that should be merged or removed.")]
     public static string FindDuplicateContent(
         ServerData serverData,
         [Description("Optional: specific def type to check")] string? defType = null,
@@ -65,7 +65,7 @@ public static class PerformanceTools
         });
     }
 
-    [McpServerTool, Description("Recommend performance improvements.")]
+    [McpServerTool, Description("Use when you want performance cleanup suggestions for XML, patches, or assets.")]
     public static string SuggestOptimizations(
         ServerData serverData,
         [Description("Optional: specific mod package ID to analyze")] string? modPackageId = null)
@@ -173,7 +173,7 @@ public static class PerformanceTools
         });
     }
 
-    [McpServerTool, Description("Check texture sizes and formats.")]
+    [McpServerTool, Description("Use when you want oversized, oddly formatted, or wasteful texture assets called out.")]
     public static string AnalyzeTextureUsage(
         ServerData serverData,
         [Description("Optional: specific mod package ID to analyze")] string? modPackageId = null)

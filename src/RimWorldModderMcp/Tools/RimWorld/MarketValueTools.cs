@@ -7,7 +7,7 @@ namespace RimWorldModderMcp.Tools.RimWorld;
 
 public static class MarketValueTools
 {
-    [McpServerTool, Description("Calculate the market value of an item including all modifiers and dependencies.")]
+    [McpServerTool, Description("Use when you want a market value breakdown for one item definition.")]
     public static string CalculateMarketValue(
         ServerData serverData,
         [Description("The name of the definition to calculate market value for")] string defName)

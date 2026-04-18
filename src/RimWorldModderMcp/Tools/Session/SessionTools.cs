@@ -7,7 +7,7 @@ namespace RimWorldModderMcp.Tools.Session;
 
 public static class SessionTools
 {
-    [McpServerTool, Description("Expand a previously returned result handle into the stored result payload.")]
+    [McpServerTool, Description("Use when a prior tool returned a result handle and you want the full stored payload back.")]
     public static string GetResultByHandle(
         ResultHandleStore resultHandleStore,
         [Description("Result handle returned in a prior tool response")] string handle)

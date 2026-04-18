@@ -7,7 +7,7 @@ namespace RimWorldModderMcp.Tools.Statistics;
 
 public static class StatisticsTools
 {
-    [McpServerTool, Description("Get comprehensive statistics about the loaded RimWorld data.")]
+    [McpServerTool, Description("Use when you need a fast overview of loaded mods, defs, patches, and load status before deeper analysis.")]
     public static string GetStatistics(ServerData serverData)
     {
         if (serverData == null) return JsonSerializer.Serialize(new { error = "Server not initialized" });

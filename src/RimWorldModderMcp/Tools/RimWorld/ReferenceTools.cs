@@ -7,7 +7,7 @@ namespace RimWorldModderMcp.Tools.RimWorld;
 
 public static class ReferenceTools
 {
-    [McpServerTool, Description("Find all references to a specific definition (what uses this item/pawn/etc.).")]
+    [McpServerTool, Description("Use when you need to know which defs, recipes, or patches refer to a specific definition.")]
     public static string GetReferences(
         ServerData serverData,
         [Description("The name of the definition to find references for")] string defName,
