@@ -41,6 +41,38 @@ Repo examples:
 - `claude-desktop-config.json`
 - `local-mcp-config.json`
 
+### Recommended: repo-local config
+
+Create `.rimworld-modder-mcp.json` in your mod repo:
+
+```json
+{
+  "rimworldPath": "/absolute/path/to/RimWorld",
+  "modDirs": [
+    "/absolute/path/to/RimWorld/Mods",
+    "/absolute/path/to/Steam/workshop/content/294100"
+  ],
+  "logPath": "/absolute/path/to/Player.log",
+  "allowedDlcs": "Core,Biotech",
+  "outputMode": "compact"
+}
+```
+
+Then your MCP client args can just be:
+
+```json
+{
+  "mcpServers": {
+    "rimworld-modder": {
+      "command": "rimworld-modder-mcp",
+      "args": [
+        "--project-root=/absolute/path/to/your/mod/repo"
+      ]
+    }
+  }
+}
+```
+
 ### No-install option
 
 If you do not want a global install, use `dnx` or `dotnet tool exec`. This also requires a `.NET 10 SDK`.
@@ -48,11 +80,11 @@ If you do not want a global install, use `dnx` or `dotnet tool exec`. This also 
 Direct shell usage:
 
 ```bash
-dnx cryptiklemur.rimworld-modder-mcp --yes -- --rimworld-path=/absolute/path/to/RimWorld
+dnx cryptiklemur.rimworld-modder-mcp --yes -- --project-root=/absolute/path/to/your/mod/repo
 ```
 
 ```bash
-dotnet tool exec cryptiklemur.rimworld-modder-mcp --yes -- --rimworld-path=/absolute/path/to/RimWorld
+dotnet tool exec cryptiklemur.rimworld-modder-mcp --yes -- --project-root=/absolute/path/to/your/mod/repo
 ```
 
 Headless MCP config with `dnx`:
@@ -66,8 +98,7 @@ Headless MCP config with `dnx`:
         "cryptiklemur.rimworld-modder-mcp",
         "--yes",
         "--",
-        "--rimworld-path=/absolute/path/to/RimWorld",
-        "--mod-dirs=/absolute/path/to/RimWorld/Mods"
+        "--project-root=/absolute/path/to/your/mod/repo"
       ]
     }
   }
@@ -88,8 +119,7 @@ Global installed tool:
 ```bash
 codex mcp add rimworld-modder -- \
   rimworld-modder-mcp \
-  --rimworld-path=/absolute/path/to/RimWorld \
-  --mod-dirs=/absolute/path/to/RimWorld/Mods
+  --project-root=/absolute/path/to/your/mod/repo
 ```
 
 No-install:
@@ -99,8 +129,7 @@ codex mcp add rimworld-modder -- \
   dnx cryptiklemur.rimworld-modder-mcp \
   --yes \
   -- \
-  --rimworld-path=/absolute/path/to/RimWorld \
-  --mod-dirs=/absolute/path/to/RimWorld/Mods
+  --project-root=/absolute/path/to/your/mod/repo
 ```
 
 </details>
@@ -113,8 +142,7 @@ Global installed tool:
 ```bash
 claude mcp add --scope user rimworld-modder -- \
   rimworld-modder-mcp \
-  --rimworld-path=/absolute/path/to/RimWorld \
-  --mod-dirs=/absolute/path/to/RimWorld/Mods
+  --project-root=/absolute/path/to/your/mod/repo
 ```
 
 No-install:
@@ -124,8 +152,7 @@ claude mcp add --scope user rimworld-modder -- \
   dnx cryptiklemur.rimworld-modder-mcp \
   --yes \
   -- \
-  --rimworld-path=/absolute/path/to/RimWorld \
-  --mod-dirs=/absolute/path/to/RimWorld/Mods
+  --project-root=/absolute/path/to/your/mod/repo
 ```
 
 </details>
@@ -137,14 +164,14 @@ Quick session with the installed tool:
 
 ```bash
 goose session \
-  --with-extension "rimworld-modder-mcp --rimworld-path=/absolute/path/to/RimWorld --mod-dirs=/absolute/path/to/RimWorld/Mods"
+  --with-extension "rimworld-modder-mcp --project-root=/absolute/path/to/your/mod/repo"
 ```
 
 Quick session with no-install `dnx`:
 
 ```bash
 goose session \
-  --with-extension "dnx cryptiklemur.rimworld-modder-mcp --yes -- --rimworld-path=/absolute/path/to/RimWorld --mod-dirs=/absolute/path/to/RimWorld/Mods"
+  --with-extension "dnx cryptiklemur.rimworld-modder-mcp --yes -- --project-root=/absolute/path/to/your/mod/repo"
 ```
 
 For a persistent Goose setup, use `goose configure` and add a command-line extension.
@@ -156,7 +183,7 @@ For a persistent Goose setup, use `goose configure` and add a command-line exten
 
 If the client exposes stdio MCP config, use either:
 
-- `command: "rimworld-modder-mcp"` with the args shown above
+- `command: "rimworld-modder-mcp"` with `--project-root=/absolute/path/to/your/mod/repo`
 - `command: "dnx"` with the no-install block shown above
 
 </details>
@@ -239,12 +266,11 @@ MCP config:
 
 ## Arguments
 
-Required:
-
-- `--rimworld-path` path to the RimWorld install
-
 Common optional:
 
+- `--project-root` repo root used for config discovery and relative path resolution
+- `--config` explicit project config path
+- `--rimworld-path` path to the RimWorld install if you are not using project config
 - `--mod-dirs` comma-separated mod directories
 - `--mods-config-path` path to `ModsConfig.xml` if you only want enabled mods
 - `--logPath` path to `Player.log`
@@ -260,10 +286,26 @@ Common RimWorld paths:
 
 Run `rimworld-modder-mcp --help` for the full argument list.
 
+## Output Controls
+
+- `outputMode`: `compact`, `normal`, or `detailed`
+- `pageSize`: cap array-heavy sections
+- `pageOffset`: page through array-heavy sections
+- `handleResults`: store a retrievable result handle
+- `get_result_by_handle`: expand a stored handle in a long-lived MCP session
+
 ## Tool Highlights
 
 Representative tools:
 
+- `doctor`
+- `audit_changed_files`
+- `validate_changed_content`
+- `compare_player_logs`
+- `find_patch_hotspots`
+- `broken_reference_explainer`
+- `scope_search`
+- `load_order_impact_report`
 - `triage_player_log`
 - `mod_ready_check`
 - `scan_dlc_dependencies`

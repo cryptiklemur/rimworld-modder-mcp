@@ -1,0 +1,14 @@
+<Patch>
+  <Operation Class="PatchOperationReplace">
+    <xpath>//Defs/ThingDef[defName="SharedSword"]/label</xpath>
+    <value>
+      <label>shared sword alpha patch</label>
+    </value>
+  </Operation>
+  <Operation Class="PatchOperationAdd">
+    <xpath>//Defs/ThingDef[defName="CoreWorkbench"]/statBases</xpath>
+    <value>
+      <Flammability>0.2</Flammability>
+    </value>
+  </Operation>
+</Patch>

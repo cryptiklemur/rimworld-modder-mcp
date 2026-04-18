@@ -1,0 +1,204 @@
+<Defs>
+  <ThingDef Abstract="True" Name="BaseWeapon">
+    <label>base weapon</label>
+    <description>Abstract base weapon for smoke tests.</description>
+    <thingClass>ThingWithComps</thingClass>
+    <graphicData>
+      <texPath>Core/BaseWeapon</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>10</MarketValue>
+      <Mass>1.0</Mass>
+    </statBases>
+    <stuffCategories>
+      <li>Metallic</li>
+    </stuffCategories>
+  </ThingDef>
+
+  <ThingDef>
+    <defName>SteelIngot</defName>
+    <label>steel ingot</label>
+    <description>Basic material.</description>
+    <graphicData>
+      <texPath>Core/SteelIngot</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>2</MarketValue>
+      <Mass>0.1</Mass>
+    </statBases>
+  </ThingDef>
+
+  <ThingDef>
+    <defName>WoodLog</defName>
+    <label>wood log</label>
+    <description>Basic fuel and material.</description>
+    <graphicData>
+      <texPath>Core/WoodLog</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>1</MarketValue>
+      <Mass>0.2</Mass>
+    </statBases>
+  </ThingDef>
+
+  <ThingDef>
+    <defName>Plant_TestHerb</defName>
+    <label>test herb</label>
+    <description>Wild plant for biome checks.</description>
+    <graphicData>
+      <texPath>Core/Plant_TestHerb</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>4</MarketValue>
+      <Mass>0.05</Mass>
+    </statBases>
+  </ThingDef>
+
+  <ThingDef>
+    <defName>Animal_TestMuffalo</defName>
+    <label>test muffalo</label>
+    <description>Wild animal for biome checks.</description>
+    <graphicData>
+      <texPath>Core/Animal_TestMuffalo</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>180</MarketValue>
+      <Mass>120</Mass>
+    </statBases>
+  </ThingDef>
+
+  <ThingDef>
+    <defName>CoreWorkbench</defName>
+    <label>core workbench</label>
+    <description>Core crafting bench.</description>
+    <graphicData>
+      <texPath>Core/CoreWorkbench</texPath>
+    </graphicData>
+    <size>2,1</size>
+    <minRoomSize>12</minRoomSize>
+    <passability>PassThroughOnly</passability>
+    <basePowerConsumption>150</basePowerConsumption>
+    <beauty>1</beauty>
+    <comfort>0.2</comfort>
+    <cleanliness>0.05</cleanliness>
+    <costList>
+      <SteelIngot>60</SteelIngot>
+      <WoodLog>20</WoodLog>
+    </costList>
+    <statBases>
+      <MarketValue>300</MarketValue>
+      <Mass>35</Mass>
+    </statBases>
+  </ThingDef>
+
+  <ThingDef ParentName="BaseWeapon">
+    <defName>SharedSword</defName>
+    <label>shared sword core</label>
+    <description>Base shared sword.</description>
+    <graphicData>
+      <texPath>Core/SharedSword</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>120</MarketValue>
+      <Mass>2.5</Mass>
+    </statBases>
+    <verbs>
+      <li>
+        <range>1.4</range>
+        <warmupTime>0.2</warmupTime>
+        <defaultCooldownTime>1.4</defaultCooldownTime>
+      </li>
+    </verbs>
+    <tools>
+      <li>
+        <label>slash</label>
+        <power>9</power>
+        <cooldownTime>1.5</cooldownTime>
+      </li>
+    </tools>
+    <costList>
+      <SteelIngot>20</SteelIngot>
+      <WoodLog>5</WoodLog>
+    </costList>
+  </ThingDef>
+
+  <TerrainDef>
+    <defName>Terrain_TestSoil</defName>
+    <label>test soil</label>
+    <description>Soil for biome checks.</description>
+  </TerrainDef>
+
+  <BiomeDef>
+    <defName>TemperateForest</defName>
+    <label>temperate forest</label>
+    <description>Core biome for smoke tests.</description>
+    <wildAnimals>
+      <li>
+        <animal>Animal_TestMuffalo</animal>
+        <commonality>0.6</commonality>
+      </li>
+    </wildAnimals>
+    <wildPlants>
+      <li>
+        <plant>Plant_TestHerb</plant>
+        <commonality>0.8</commonality>
+      </li>
+    </wildPlants>
+    <terrainsByFertility>
+      <li>
+        <terrain>Terrain_TestSoil</terrain>
+        <fertility>1.0</fertility>
+      </li>
+    </terrainsByFertility>
+  </BiomeDef>
+
+  <ResearchProjectDef>
+    <defName>Smithing</defName>
+    <label>smithing</label>
+    <description>Basic smithing.</description>
+    <techLevel>Industrial</techLevel>
+  </ResearchProjectDef>
+
+  <ResearchProjectDef>
+    <defName>AdvancedSmithing</defName>
+    <label>advanced smithing</label>
+    <description>Improved blades.</description>
+    <techLevel>Industrial</techLevel>
+    <prerequisites>
+      <li>Smithing</li>
+    </prerequisites>
+  </ResearchProjectDef>
+
+  <RecipeDef>
+    <defName>MakeSharedSword</defName>
+    <label>forge shared sword</label>
+    <jobString>forging a shared sword.</jobString>
+    <recipeUsers>
+      <li>CoreWorkbench</li>
+    </recipeUsers>
+    <ingredients>
+      <li>
+        <filter>
+          <thingDefs>
+            <li>SteelIngot</li>
+          </thingDefs>
+        </filter>
+        <count>20</count>
+      </li>
+      <li>
+        <filter>
+          <thingDefs>
+            <li>WoodLog</li>
+          </thingDefs>
+        </filter>
+        <count>5</count>
+      </li>
+    </ingredients>
+    <products>
+      <li>
+        <defName>SharedSword</defName>
+        <count>1</count>
+      </li>
+    </products>
+  </RecipeDef>
+</Defs>

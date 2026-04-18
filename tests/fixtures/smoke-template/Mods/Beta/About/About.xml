@@ -1,0 +1,19 @@
+<ModMetaData>
+  <name>Beta Overrides</name>
+  <packageId>example.beta</packageId>
+  <author>Smoke Test</author>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <modDependencies>
+    <li>
+      <packageId>example.alpha</packageId>
+    </li>
+    <li>
+      <packageId>missing.required</packageId>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>ludeon.rimworld.ideology</li>
+  </loadAfter>
+</ModMetaData>

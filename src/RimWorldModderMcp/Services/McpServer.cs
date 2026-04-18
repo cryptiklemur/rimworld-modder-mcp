@@ -3,16 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using RimWorldModderMcp.Attributes;
 using RimWorldModderMcp.Models;
-using RimWorldModderMcp.Services;
-using RimWorldModderMcp.Tools.RimWorld;
-using RimWorldModderMcp.Tools.Conflicts;
-using RimWorldModderMcp.Tools.Statistics;
-using RimWorldModderMcp.Tools.Patch;
-using RimWorldModderMcp.Tools.Performance;
-using RimWorldModderMcp.Tools.Development;
-using RimWorldModderMcp.Tools.GameMechanics;
 
 namespace RimWorldModderMcp.Services;
 
@@ -20,16 +11,20 @@ public class McpServer : BackgroundService
 {
     private readonly ILogger<McpServer> _logger;
     private readonly ServerData _serverData;
-    private readonly ConflictDetector _conflictDetector;
-    private readonly Dictionary<string, (MethodInfo method, Type declaringType, ParameterInfo[] parameters)> _tools;
+    private readonly ToolExecutor _toolExecutor;
+    private readonly ProjectContext _projectContext;
     private readonly SemaphoreSlim _initializationSemaphore = new(0, 1);
 
-    public McpServer(ILogger<McpServer> logger, ServerData serverData, ConflictDetector conflictDetector)
+    public McpServer(
+        ILogger<McpServer> logger,
+        ServerData serverData,
+        ToolExecutor toolExecutor,
+        ProjectContext projectContext)
     {
         _logger = logger;
         _serverData = serverData;
-        _conflictDetector = conflictDetector;
-        _tools = DiscoverTools();
+        _toolExecutor = toolExecutor;
+        _projectContext = projectContext;
     }
 
     public void NotifyInitializationComplete()
@@ -175,12 +170,12 @@ public class McpServer : BackgroundService
 
     private async Task HandleToolsList(StreamWriter writer, int? id)
     {
-        _logger.LogDebug("📋 Listing {ToolCount} available tools", _tools.Count);
+        _logger.LogDebug("📋 Listing {ToolCount} available tools", _toolExecutor.Tools.Count);
 
-        var tools = _tools.Select(kvp =>
+        var tools = _toolExecutor.Tools.Select(kvp =>
         {
             var toolName = kvp.Key;
-            var (method, _, parameters) = kvp.Value;
+            var (method, parameters) = kvp.Value;
             
             // Get description from attribute
             var description = method.GetCustomAttribute<System.ComponentModel.DescriptionAttribute>()?.Description ?? 
@@ -192,26 +187,26 @@ public class McpServer : BackgroundService
 
             foreach (var param in parameters)
             {
-                if (param.Name == "serverData") continue; // Skip injected parameter
+                if (IsInjectedParameter(param.ParameterType)) continue;
+                if (string.IsNullOrWhiteSpace(param.Name)) continue;
 
                 var paramDescription = param.GetCustomAttribute<System.ComponentModel.DescriptionAttribute>()?.Description ?? 
                                      $"{param.Name} parameter";
 
-                var isRequired = !param.HasDefaultValue && param.ParameterType.IsValueType && 
-                                Nullable.GetUnderlyingType(param.ParameterType) == null;
-
-                if (isRequired && param.ParameterType == typeof(string))
+                var isRequired = !param.HasDefaultValue && Nullable.GetUnderlyingType(param.ParameterType) == null;
+                if (isRequired)
                 {
-                    // String parameters without default values are required
                     required.Add(param.Name);
                 }
 
                 properties[param.Name] = new
                 {
-                    type = GetJsonSchemaType(param.ParameterType),
+                    type = ToolExecutor.GetJsonSchemaType(param.ParameterType),
                     description = paramDescription
                 };
             }
+
+            AddStandardToolProperties(properties);
 
             return new
             {
@@ -255,7 +250,7 @@ public class McpServer : BackgroundService
         _logger.LogDebug("🔧 Calling tool: {ToolName} with args: {Args}", toolName, 
             arguments?.ToJsonString() ?? "{}");
 
-        if (!_tools.TryGetValue(toolName, out var toolInfo))
+        if (!_toolExecutor.Tools.ContainsKey(toolName))
         {
             await SendErrorResponse(writer, id, -32602, "Invalid params", $"Unknown tool: {toolName}");
             return;
@@ -269,51 +264,16 @@ public class McpServer : BackgroundService
 
         try
         {
-            var (method, declaringType, parameters_) = toolInfo;
-
-            // Prepare method arguments
-            var args = new List<object?>();
-            
-            foreach (var param in parameters_)
-            {
-                if (param.Name == "serverData")
+            var execution = _toolExecutor.Execute(
+                toolName,
+                ToArgumentDictionary(arguments),
+                new ToolExecutionOptions
                 {
-                    args.Add(_serverData);
-                }
-                else if (param.Name == "conflictDetector")
-                {
-                    args.Add(_conflictDetector);
-                }
-                else if (arguments?.ContainsKey(param.Name) == true)
-                {
-                    var value = ConvertArgument(arguments[param.Name], param.ParameterType);
-                    args.Add(value);
-                }
-                else if (param.HasDefaultValue)
-                {
-                    args.Add(param.DefaultValue);
-                }
-                else
-                {
-                    // Required parameter is missing
-                    await SendErrorResponse(writer, id, -32602, "Invalid params", 
-                        $"Missing required parameter: {param.Name}");
-                    return;
-                }
-            }
-
-            // Invoke the tool method
-            var result = method.Invoke(null, args.ToArray());
-            
-            string jsonResult;
-            if (result is string stringResult)
-            {
-                jsonResult = stringResult;
-            }
-            else
-            {
-                jsonResult = JsonSerializer.Serialize(result);
-            }
+                    OutputMode = ToolOutputFormatter.ParseMode(arguments?["outputMode"]?.GetValue<string>() ?? _projectContext.OutputMode),
+                    PageSize = arguments?["pageSize"]?.GetValue<int>() ?? _projectContext.PageSize,
+                    PageOffset = arguments?["pageOffset"]?.GetValue<int>() ?? _projectContext.PageOffset,
+                    HandleResults = arguments?["handleResults"]?.GetValue<bool>() ?? _projectContext.HandleResults
+                });
 
             var response = new
             {
@@ -326,7 +286,7 @@ public class McpServer : BackgroundService
                         new
                         {
                             type = "text",
-                            text = jsonResult
+                            text = execution.Text
                         }
                     }
                 }
@@ -363,103 +323,65 @@ public class McpServer : BackgroundService
         _logger.LogDebug("❌ Sent error response: {Code} - {Message}", code, message);
     }
 
-    private static Dictionary<string, (MethodInfo method, Type declaringType, ParameterInfo[] parameters)> DiscoverTools()
+    private static bool IsInjectedParameter(Type type) =>
+        type == typeof(ServerData) ||
+        type == typeof(ConflictDetector) ||
+        type == typeof(ProjectContext) ||
+        type == typeof(ResultHandleStore);
+
+    private static void AddStandardToolProperties(Dictionary<string, object> properties)
     {
-        var tools = new Dictionary<string, (MethodInfo, Type, ParameterInfo[])>();
-
-        // Get all types that contain MCP tools
-        var toolTypes = new[]
+        if (!properties.ContainsKey("outputMode"))
         {
-            typeof(DefinitionTools),
-            typeof(ModTools), 
-            typeof(ValidationTools),
-            typeof(ReferenceTools),
-            typeof(MarketValueTools),
-            typeof(ConflictTools),
-            typeof(StatisticsTools),
-            typeof(PatchAnalysisTools),
-            typeof(PerformanceTools),
-            typeof(DevelopmentTools),
-            typeof(GameMechanicsTools),
-            typeof(ModAnalysisTools),
-            typeof(ModdingAssistanceTools),
-            typeof(ModWorkflowTools)
-        };
-
-        foreach (var type in toolTypes)
-        {
-            var methods = type.GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .Where(m => m.GetCustomAttribute<McpServerToolAttribute>() != null);
-
-            foreach (var method in methods)
+            properties["outputMode"] = new
             {
-                var toolName = ConvertMethodNameToToolName(method.Name);
-                var parameters = method.GetParameters();
-                
-                tools[toolName] = (method, type, parameters);
-            }
+                type = "string",
+                description = "Output mode: compact, normal, or detailed"
+            };
         }
 
-        return tools;
-    }
-
-    private static string ConvertMethodNameToToolName(string methodName)
-    {
-        // Convert PascalCase to snake_case
-        return string.Concat(methodName.Select((c, i) => 
-            i > 0 && char.IsUpper(c) ? "_" + char.ToLower(c).ToString() : char.ToLower(c).ToString()));
-    }
-
-    private static string GetJsonSchemaType(Type type)
-    {
-        var underlyingType = Nullable.GetUnderlyingType(type) ?? type;
-
-        if (underlyingType == typeof(string))
-            return "string";
-        if (underlyingType == typeof(int) || underlyingType == typeof(long) || underlyingType == typeof(short))
-            return "integer";
-        if (underlyingType == typeof(double) || underlyingType == typeof(float) || underlyingType == typeof(decimal))
-            return "number";
-        if (underlyingType == typeof(bool))
-            return "boolean";
-        if (underlyingType.IsArray || (underlyingType.IsGenericType && underlyingType.GetGenericTypeDefinition() == typeof(List<>)))
-            return "array";
-
-        return "string"; // Default fallback
-    }
-
-    private static object? ConvertArgument(JsonNode? jsonValue, Type targetType)
-    {
-        if (jsonValue == null)
-            return null;
-
-        var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
-
-        try
+        if (!properties.ContainsKey("pageSize"))
         {
-            if (underlyingType == typeof(string))
-                return jsonValue.GetValue<string>();
-            if (underlyingType == typeof(int))
-                return jsonValue.GetValue<int>();
-            if (underlyingType == typeof(long))
-                return jsonValue.GetValue<long>();
-            if (underlyingType == typeof(double))
-                return jsonValue.GetValue<double>();
-            if (underlyingType == typeof(float))
-                return jsonValue.GetValue<float>();
-            if (underlyingType == typeof(bool))
-                return jsonValue.GetValue<bool>();
-            if (underlyingType == typeof(decimal))
-                return jsonValue.GetValue<decimal>();
+            properties["pageSize"] = new
+            {
+                type = "integer",
+                description = "Maximum items returned per array-valued section"
+            };
+        }
 
-            // For complex types, try to deserialize from JSON
-            return JsonSerializer.Deserialize(jsonValue.ToJsonString(), targetType);
-        }
-        catch (Exception)
+        if (!properties.ContainsKey("pageOffset"))
         {
-            // If conversion fails, return the string representation
-            return jsonValue.ToString();
+            properties["pageOffset"] = new
+            {
+                type = "integer",
+                description = "Offset to apply before paging array-valued sections"
+            };
         }
+
+        if (!properties.ContainsKey("handleResults"))
+        {
+            properties["handleResults"] = new
+            {
+                type = "boolean",
+                description = "Store a retrievable result handle for this response"
+            };
+        }
+    }
+
+    private static Dictionary<string, object?> ToArgumentDictionary(JsonObject? arguments)
+    {
+        if (arguments == null)
+        {
+            return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var dictionary = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var property in arguments)
+        {
+            dictionary[property.Key] = property.Value;
+        }
+
+        return dictionary;
     }
 
     private static string GetServerVersion()

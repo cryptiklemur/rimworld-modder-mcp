@@ -10,6 +10,13 @@ namespace RimWorldModderMcp.Tools.Development;
 
 public static class DevelopmentTools
 {
+    private sealed record CompatibilityAnalysis(
+        int TotalDefinitions,
+        int PotentialConflicts,
+        int PatchCount,
+        List<string> Conflicts,
+        List<string> Recommendations);
+
     [McpServerTool, Description("Check translation completeness.")]
     public static string ValidateLocalization(
         ServerData serverData,
@@ -177,25 +184,25 @@ public static class DevelopmentTools
             report.AppendLine();
             
             report.AppendLine("### Definition Analysis");
-            report.AppendLine($"- Total Definitions: {modAnalysis.totalDefinitions}");
-            report.AppendLine($"- Potential Conflicts: {modAnalysis.potentialConflicts}");
-            report.AppendLine($"- Patch Count: {modAnalysis.patchCount}");
+            report.AppendLine($"- Total Definitions: {modAnalysis.TotalDefinitions}");
+            report.AppendLine($"- Potential Conflicts: {modAnalysis.PotentialConflicts}");
+            report.AppendLine($"- Patch Count: {modAnalysis.PatchCount}");
             report.AppendLine();
 
-            if (modAnalysis.conflicts.Any())
+            if (modAnalysis.Conflicts.Any())
             {
                 report.AppendLine("### Detected Conflicts");
-                foreach (var conflict in modAnalysis.conflicts.Take(5))
+                foreach (var conflict in modAnalysis.Conflicts.Take(5))
                 {
                     report.AppendLine($"- {conflict}");
                 }
                 report.AppendLine();
             }
 
-            if (modAnalysis.recommendations.Any())
+            if (modAnalysis.Recommendations.Any())
             {
                 report.AppendLine("### Recommendations");
-                foreach (var recommendation in modAnalysis.recommendations)
+                foreach (var recommendation in modAnalysis.Recommendations)
                 {
                     report.AppendLine($"- {recommendation}");
                 }
@@ -840,7 +847,7 @@ public static class DevelopmentTools
         return sections;
     }
 
-    private static dynamic AnalyzeModCompatibility(ServerData serverData, ModInfo mod)
+    private static CompatibilityAnalysis AnalyzeModCompatibility(ServerData serverData, ModInfo mod)
     {
         var modDefs = serverData.Defs.Values.Where(d => d.Mod.PackageId == mod.PackageId).ToList();
         var conflicts = new List<string>();
@@ -868,14 +875,12 @@ public static class DevelopmentTools
             recommendations.Add("High patch count may indicate compatibility issues");
         }
         
-        return new
-        {
-            totalDefinitions = modDefs.Count,
-            potentialConflicts = conflicts.Count,
-            patchCount = patchCount,
-            conflicts = conflicts,
-            recommendations = recommendations
-        };
+        return new CompatibilityAnalysis(
+            modDefs.Count,
+            conflicts.Count,
+            patchCount,
+            conflicts,
+            recommendations);
     }
 
     private static string ExportDefinitionsInFormat(List<RimWorldDef> defs, string format)

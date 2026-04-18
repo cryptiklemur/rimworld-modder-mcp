@@ -1,0 +1,196 @@
+<Defs>
+  <ThingDef ParentName="BaseWeapon">
+    <defName>SharedSword</defName>
+    <label>shared sword alpha</label>
+    <description>Alpha override of the shared sword.</description>
+    <graphicData>
+      <texPath>Weapons/SharedSwordAlpha</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>180</MarketValue>
+      <Mass>2.1</Mass>
+    </statBases>
+    <verbs>
+      <li>
+        <range>1.5</range>
+        <warmupTime>0.18</warmupTime>
+        <defaultCooldownTime>1.2</defaultCooldownTime>
+      </li>
+    </verbs>
+    <tools>
+      <li>
+        <label>slash</label>
+        <power>12</power>
+        <cooldownTime>1.2</cooldownTime>
+      </li>
+    </tools>
+    <costList>
+      <SteelIngot>24</SteelIngot>
+      <WoodLog>4</WoodLog>
+    </costList>
+  </ThingDef>
+
+  <ThingDef ParentName="BaseWeapon">
+    <defName>AlphaBlade</defName>
+    <label>alpha blade</label>
+    <description>Primary alpha weapon.</description>
+    <thingClass>ThingWithComps</thingClass>
+    <graphicData>
+      <texPath>Weapons/AlphaBlade</texPath>
+    </graphicData>
+    <qualityRange>Normal Legendary</qualityRange>
+    <statBases>
+      <MarketValue>450</MarketValue>
+      <Mass>1.8</Mass>
+    </statBases>
+    <verbs>
+      <li>
+        <range>1.7</range>
+        <warmupTime>0.16</warmupTime>
+        <defaultCooldownTime>1.0</defaultCooldownTime>
+      </li>
+    </verbs>
+    <tools>
+      <li>
+        <label>slash</label>
+        <power>18</power>
+        <cooldownTime>1.05</cooldownTime>
+      </li>
+    </tools>
+    <costList>
+      <SteelIngot>30</SteelIngot>
+      <WoodLog>2</WoodLog>
+    </costList>
+    <workAmount>1800</workAmount>
+  </ThingDef>
+
+  <ThingDef ParentName="BaseWeapon">
+    <defName>AlphaBladeTwin</defName>
+    <label>alpha blade twin</label>
+    <description>Nearly identical weapon for duplicate detection.</description>
+    <thingClass>ThingWithComps</thingClass>
+    <graphicData>
+      <texPath>Weapons/AlphaBladeTwin</texPath>
+    </graphicData>
+    <qualityRange>Normal Legendary</qualityRange>
+    <statBases>
+      <MarketValue>452</MarketValue>
+      <Mass>1.8</Mass>
+    </statBases>
+    <verbs>
+      <li>
+        <range>1.7</range>
+        <warmupTime>0.16</warmupTime>
+        <defaultCooldownTime>1.0</defaultCooldownTime>
+      </li>
+    </verbs>
+    <tools>
+      <li>
+        <label>slash</label>
+        <power>18</power>
+        <cooldownTime>1.05</cooldownTime>
+      </li>
+    </tools>
+    <costList>
+      <SteelIngot>30</SteelIngot>
+      <WoodLog>2</WoodLog>
+    </costList>
+    <workAmount>1800</workAmount>
+  </ThingDef>
+
+  <ThingDef>
+    <defName>AlphaWorkbench</defName>
+    <label>alpha workbench</label>
+    <description>Workbench for alpha content.</description>
+    <thingClass>ThingWithComps</thingClass>
+    <graphicData>
+      <texPath>Buildings/AlphaWorkbench</texPath>
+    </graphicData>
+    <size>2,2</size>
+    <minRoomSize>20</minRoomSize>
+    <basePowerConsumption>200</basePowerConsumption>
+    <beauty>2</beauty>
+    <comfort>0.4</comfort>
+    <cleanliness>0.1</cleanliness>
+    <costList>
+      <SteelIngot>90</SteelIngot>
+      <WoodLog>25</WoodLog>
+    </costList>
+    <comps>
+      <li Class="CompProperties_Glower">
+        <glowRadius>10</glowRadius>
+      </li>
+    </comps>
+    <statBases>
+      <MarketValue>420</MarketValue>
+      <Mass>48</Mass>
+    </statBases>
+  </ThingDef>
+
+  <ThingDef>
+    <defName>AlphaBrokenWidget</defName>
+    <label>alpha broken widget</label>
+    <label>duplicate alpha broken widget</label>
+    <description>Broken widget with invalid data for linting and runtime checks.</description>
+    <thingClass>ThingWithComps</thingClass>
+    <graphicData>
+      <texPath>Widgets/AlphaBrokenWidget</texPath>
+    </graphicData>
+    <marketValue>notANumber</marketValue>
+    <thingDef>MissingRelic</thingDef>
+    <thingCategories>
+      <li>MissingRelic</li>
+    </thingCategories>
+    <comps>
+      <li Class="CompProperties_Refuelable">
+        <fuelCapacity>10</fuelCapacity>
+      </li>
+    </comps>
+  </ThingDef>
+
+  <ResearchProjectDef>
+    <defName>AlphaSmithing</defName>
+    <label>alpha smithing</label>
+    <description>Unlocks alpha blades.</description>
+    <techLevel>Industrial</techLevel>
+    <prerequisites>
+      <li>Smithing</li>
+    </prerequisites>
+  </ResearchProjectDef>
+
+  <RecipeDef>
+    <defName>CraftAlphaBlade</defName>
+    <label>craft alpha blade</label>
+    <jobString>crafting an alpha blade.</jobString>
+    <recipeUsers>
+      <li>AlphaWorkbench</li>
+    </recipeUsers>
+    <researchPrerequisites>
+      <li>AlphaSmithing</li>
+    </researchPrerequisites>
+    <ingredients>
+      <li>
+        <filter>
+          <thingDefs>
+            <li>SteelIngot</li>
+          </thingDefs>
+        </filter>
+        <count>30</count>
+      </li>
+      <li>
+        <filter>
+          <thingDefs>
+            <li>WoodLog</li>
+          </thingDefs>
+        </filter>
+        <count>2</count>
+      </li>
+    </ingredients>
+    <products>
+      <li>
+        <defName>AlphaBlade</defName>
+        <count>1</count>
+      </li>
+    </products>
+  </RecipeDef>
+</Defs>

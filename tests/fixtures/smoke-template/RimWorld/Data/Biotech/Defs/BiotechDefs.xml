@@ -1,0 +1,14 @@
+<Defs>
+  <ThingDef>
+    <defName>BiotechGeneBooster</defName>
+    <label>gene booster</label>
+    <description>Allowed DLC content.</description>
+    <graphicData>
+      <texPath>Biotech/GeneBooster</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>250</MarketValue>
+      <Mass>1.2</Mass>
+    </statBases>
+  </ThingDef>
+</Defs>

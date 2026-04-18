@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
@@ -58,17 +59,25 @@ public static class ModWorkflowTools
     private sealed record AuditFinding(string Severity, string Code, string Message, string? ModPackageId = null, string? DefName = null, string? FilePath = null, string? XPath = null, string? Suggestion = null);
     private sealed record PatchHotspot(string Severity, string XPath, int PatchCount, IReadOnlyList<string> Operations, IReadOnlyList<string> Mods, IReadOnlyList<string> Files, IReadOnlyList<string> TargetDefs);
     private sealed record LogIncident(string Category, string Signature, string Headline, string Text, IReadOnlyList<string> ContextLines, IReadOnlyList<string> MentionedDefs, IReadOnlyList<string> MentionedFiles, IReadOnlyList<string> MentionedMods);
+    private sealed record LogGroup(string Category, string Signature, string Headline, int Count, IReadOnlyList<string> MentionedDefs, IReadOnlyList<string> MentionedFiles, IReadOnlyList<string> MentionedMods);
 
     [McpServerTool, Description("Group RimWorld Player.log problems into compact issue buckets for fast debugging.")]
     public static string TriagePlayerLog(
         ServerData serverData,
-        [Description("Absolute path to the RimWorld Player.log or Player-prev.log file")] string logPath,
+        ProjectContext projectContext,
+        [Description("Absolute path to the RimWorld Player.log or Player-prev.log file")] string? logPath = null,
         [Description("Optional: only keep incidents clearly tied to this mod package ID")] string? modPackageId = null,
         [Description("Maximum grouped issue buckets to return")] int maxGroups = 15)
     {
-        if (!File.Exists(logPath))
+        var resolvedLogPath = logPath ?? projectContext.LogPath;
+        if (string.IsNullOrWhiteSpace(resolvedLogPath))
         {
-            return Serialize(new { error = $"Log file '{logPath}' was not found" });
+            return Serialize(new { error = "No log path was provided. Pass logPath or set logPath in .rimworld-modder-mcp.json." });
+        }
+
+        if (!File.Exists(resolvedLogPath))
+        {
+            return Serialize(new { error = $"Log file '{resolvedLogPath}' was not found" });
         }
 
         ModInfo? targetMod = null;
@@ -81,7 +90,7 @@ public static class ModWorkflowTools
             }
         }
 
-        var incidents = AnalyzePlayerLog(serverData, logPath, targetMod);
+        var incidents = AnalyzePlayerLog(serverData, resolvedLogPath, targetMod);
         var groupedIncidents = incidents
             .GroupBy(incident => incident.Signature, StringComparer.OrdinalIgnoreCase)
             .Select(group =>
@@ -110,7 +119,7 @@ public static class ModWorkflowTools
 
         return Serialize(new
         {
-            logPath,
+            logPath = resolvedLogPath,
             filteredMod = targetMod == null ? null : new { packageId = targetMod.PackageId, name = targetMod.Name },
             summary = new
             {
@@ -245,11 +254,12 @@ public static class ModWorkflowTools
     [McpServerTool, Description("Scan loaded mods for references to DLC content outside an allowed compatibility target.")]
     public static string ScanDlcDependencies(
         ServerData serverData,
-        [Description("Comma-separated DLC set to allow, for example 'Core,Biotech'")] string allowedDlcs = "Core,Biotech",
+        ProjectContext projectContext,
+        [Description("Comma-separated DLC set to allow, for example 'Core,Biotech'")] string? allowedDlcs = null,
         [Description("Optional: specific mod package ID to scan")] string? modPackageId = null,
         [Description("Maximum findings to include per mod")] int maxFindingsPerMod = 12)
     {
-        var allowedSet = ParseAllowedContentSet(allowedDlcs);
+        var allowedSet = ParseAllowedContentSet(allowedDlcs ?? projectContext.AllowedDlcs);
         var mods = GetTargetMods(serverData, modPackageId).ToList();
         if (mods.Count == 0)
         {
@@ -522,12 +532,13 @@ public static class ModWorkflowTools
     [McpServerTool, Description("Run a compact readiness check for one mod or all loaded custom mods.")]
     public static string ModReadyCheck(
         ServerData serverData,
+        ProjectContext projectContext,
         [Description("Optional: specific mod package ID to evaluate")] string? modPackageId = null,
-        [Description("Comma-separated DLC compatibility target, for example 'Core,Biotech'")] string allowedDlcs = "Core,Biotech",
+        [Description("Comma-separated DLC compatibility target, for example 'Core,Biotech'")] string? allowedDlcs = null,
         [Description("Optional: Player.log path for runtime issue inclusion")] string? logPath = null,
         [Description("Maximum issue examples per check")] int maxIssues = 8)
     {
-        var allowedSet = ParseAllowedContentSet(allowedDlcs);
+        var allowedSet = ParseAllowedContentSet(allowedDlcs ?? projectContext.AllowedDlcs);
         var targetMods = GetTargetMods(serverData, modPackageId).ToList();
         if (targetMods.Count == 0)
         {
@@ -535,9 +546,10 @@ public static class ModWorkflowTools
         }
 
         List<LogIncident> logIncidents = [];
-        if (!string.IsNullOrWhiteSpace(logPath) && File.Exists(logPath))
+        var resolvedLogPath = logPath ?? projectContext.LogPath;
+        if (!string.IsNullOrWhiteSpace(resolvedLogPath) && File.Exists(resolvedLogPath))
         {
-            logIncidents = AnalyzePlayerLog(serverData, logPath, null);
+            logIncidents = AnalyzePlayerLog(serverData, resolvedLogPath, null);
         }
 
         var modStatuses = targetMods.Select(mod =>
@@ -663,7 +675,7 @@ public static class ModWorkflowTools
                     new
                     {
                         name = "runtime_log",
-                        status = modLogGroups.Count > 0 ? "warning" : string.IsNullOrWhiteSpace(logPath) ? "skipped" : "ready",
+                        status = modLogGroups.Count > 0 ? "warning" : string.IsNullOrWhiteSpace(resolvedLogPath) ? "skipped" : "ready",
                         issueCount = modLogGroups.Count,
                         examples = modLogGroups
                     }
@@ -675,7 +687,7 @@ public static class ModWorkflowTools
         return Serialize(new
         {
             allowedContent = allowedSet.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList(),
-            logPath = !string.IsNullOrWhiteSpace(logPath) && File.Exists(logPath) ? logPath : null,
+            logPath = !string.IsNullOrWhiteSpace(resolvedLogPath) && File.Exists(resolvedLogPath) ? resolvedLogPath : null,
             summary = new
             {
                 checkedMods = modStatuses.Count,
@@ -684,6 +696,881 @@ public static class ModWorkflowTools
                 blocked = modStatuses.Count(status => string.Equals(status.status, "blocked", StringComparison.OrdinalIgnoreCase))
             },
             modStatuses
+        });
+    }
+
+    [McpServerTool, Description("Check project config, RimWorld paths, git state, and loaded-data basics for this workspace.")]
+    public static string Doctor(
+        ProjectContext projectContext,
+        ServerData serverData,
+        [Description("Optional: Player.log path override")] string? logPath = null)
+    {
+        var checks = new List<object>();
+        var errorCount = 0;
+        var warningCount = 0;
+        var resolvedLogPath = logPath ?? projectContext.LogPath;
+
+        void AddCheck(string name, string status, string message, object? details = null)
+        {
+            if (string.Equals(status, "error", StringComparison.OrdinalIgnoreCase))
+            {
+                errorCount++;
+            }
+            else if (string.Equals(status, "warning", StringComparison.OrdinalIgnoreCase))
+            {
+                warningCount++;
+            }
+
+            checks.Add(new
+            {
+                name,
+                status,
+                message,
+                details
+            });
+        }
+
+        AddCheck(
+            "project_config",
+            projectContext.HasProjectConfig ? "ready" : "warning",
+            projectContext.HasProjectConfig
+                ? $"Using project config at '{projectContext.ConfigPath}'"
+                : "No .rimworld-modder-mcp.json was found. The server will rely on CLI arguments only.",
+            new
+            {
+                configPath = projectContext.ConfigPath,
+                projectRoot = projectContext.ProjectRoot
+            });
+
+        AddCheck(
+            "project_root",
+            Directory.Exists(projectContext.ProjectRoot) ? "ready" : "error",
+            Directory.Exists(projectContext.ProjectRoot)
+                ? $"Project root exists: '{projectContext.ProjectRoot}'"
+                : $"Project root '{projectContext.ProjectRoot}' does not exist");
+
+        if (string.IsNullOrWhiteSpace(projectContext.RimworldPath))
+        {
+            AddCheck("rimworld_path", "error", "No RimWorld path is configured.");
+        }
+        else
+        {
+            var dataDir = Path.Combine(projectContext.RimworldPath, "Data");
+            AddCheck(
+                "rimworld_path",
+                Directory.Exists(dataDir) ? "ready" : "error",
+                Directory.Exists(dataDir)
+                    ? $"RimWorld data directory found at '{dataDir}'"
+                    : $"RimWorld data directory was not found under '{projectContext.RimworldPath}'",
+                new
+                {
+                    rimworldPath = projectContext.RimworldPath,
+                    dataDirectory = dataDir
+                });
+        }
+
+        if (projectContext.ModDirs.Count == 0)
+        {
+            AddCheck("mod_dirs", "warning", "No mod directories are configured.");
+        }
+        else
+        {
+            var existing = projectContext.ModDirs.Where(Directory.Exists).ToList();
+            var missing = projectContext.ModDirs.Where(path => !Directory.Exists(path)).ToList();
+            AddCheck(
+                "mod_dirs",
+                missing.Count > 0 ? "warning" : "ready",
+                missing.Count > 0
+                    ? $"{missing.Count} configured mod directories were not found."
+                    : $"All {existing.Count} configured mod directories exist.",
+                new
+                {
+                    existing,
+                    missing
+                });
+        }
+
+        if (!string.IsNullOrWhiteSpace(projectContext.ModsConfigPath))
+        {
+            AddCheck(
+                "mods_config",
+                File.Exists(projectContext.ModsConfigPath) ? "ready" : "warning",
+                File.Exists(projectContext.ModsConfigPath)
+                    ? $"ModsConfig.xml found at '{projectContext.ModsConfigPath}'"
+                    : $"ModsConfig.xml was not found at '{projectContext.ModsConfigPath}'");
+        }
+
+        if (!string.IsNullOrWhiteSpace(resolvedLogPath))
+        {
+            AddCheck(
+                "player_log",
+                File.Exists(resolvedLogPath) ? "ready" : "warning",
+                File.Exists(resolvedLogPath)
+                    ? $"Player log found at '{resolvedLogPath}'"
+                    : $"Player log was not found at '{resolvedLogPath}'");
+        }
+        else
+        {
+            AddCheck("player_log", "warning", "No Player.log path is configured.");
+        }
+
+        var gitMetadataPath = Path.Combine(projectContext.ProjectRoot, ".git");
+        AddCheck(
+            "git_repo",
+            Directory.Exists(gitMetadataPath) || File.Exists(gitMetadataPath) ? "ready" : "warning",
+            Directory.Exists(gitMetadataPath) || File.Exists(gitMetadataPath)
+                ? "Project root appears to be a git repository."
+                : "Project root does not appear to be a git repository.");
+
+        AddCheck(
+            "loaded_data",
+            serverData.IsFullyLoaded ? "ready" : serverData.IsModsLoaded || serverData.IsDefsLoaded ? "warning" : "info",
+            serverData.IsFullyLoaded
+                ? "Server data is fully loaded."
+                : "Server data is not fully loaded yet.",
+            new
+            {
+                isModsLoaded = serverData.IsModsLoaded,
+                isDefsLoaded = serverData.IsDefsLoaded,
+                isConflictsAnalyzed = serverData.IsConflictsAnalyzed,
+                modCount = serverData.Mods.Count,
+                defCount = serverData.Defs.Count,
+                patchCount = serverData.GlobalPatches.Count,
+                conflictCount = serverData.Conflicts.Count
+            });
+
+        var status = errorCount > 0 ? "error" : warningCount > 0 ? "warning" : "ready";
+
+        return Serialize(new
+        {
+            status,
+            summary = new
+            {
+                errors = errorCount,
+                warnings = warningCount,
+                hasProjectConfig = projectContext.HasProjectConfig,
+                projectRoot = projectContext.ProjectRoot,
+                rimworldPath = projectContext.RimworldPath,
+                modDirCount = projectContext.ModDirs.Count,
+                logPath = projectContext.LogPath,
+                allowedDlcs = projectContext.AllowedDlcs
+            },
+            checks
+        });
+    }
+
+    [McpServerTool, Description("Audit only the changed files in the current repo or an explicit file list.")]
+    public static string AuditChangedFiles(
+        ServerData serverData,
+        ProjectContext projectContext,
+        [Description("Optional git base ref, for example origin/main")] string? baseRef = null,
+        [Description("Optional explicit file paths to audit instead of using git")] string[]? paths = null,
+        [Description("Minimum severity to include: info, warning, or error")] string severity = "warning",
+        [Description("Maximum findings to return")] int maxResults = 40)
+    {
+        var changedFiles = ResolveChangedFiles(projectContext, baseRef, paths);
+        if (changedFiles.Count == 0)
+        {
+            return Serialize(new { error = "No changed files were found for the requested scope." });
+        }
+
+        var scopedDefs = GetChangedDefs(serverData, changedFiles).ToList();
+        var scopedPatches = GetChangedPatches(serverData, changedFiles).ToList();
+        var scopedMods = GetChangedMods(serverData, changedFiles)
+            .Concat(scopedDefs.Select(def => def.Mod))
+            .Concat(scopedPatches.Select(patch => patch.Mod))
+            .DistinctBy(mod => mod.PackageId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var findings = CollectAuditFindings(serverData, scopedMods, scopedDefs, scopedPatches)
+            .Where(finding => MeetsSeverityThreshold(finding.Severity, severity))
+            .OrderByDescending(finding => SeverityRank(finding.Severity))
+            .ThenBy(finding => finding.Code, StringComparer.OrdinalIgnoreCase)
+            .Take(Math.Max(1, maxResults))
+            .ToList();
+
+        var matchedPaths = scopedDefs.Select(def => NormalizePath(ResolveDefFilePath(def)))
+            .Concat(scopedPatches.Select(patch => NormalizePath(patch.FilePath)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return Serialize(new
+        {
+            projectContext.ProjectRoot,
+            changeSource = paths != null && paths.Length > 0 ? "explicit_paths" : string.IsNullOrWhiteSpace(baseRef) ? "git_status" : "git_diff",
+            baseRef,
+            summary = new
+            {
+                changedFiles = changedFiles.Count,
+                matchedMods = scopedMods.Count,
+                matchedDefs = scopedDefs.Count,
+                matchedPatches = scopedPatches.Count,
+                findings = findings.Count
+            },
+            changedFiles = changedFiles.Select(path => new
+            {
+                path,
+                kind = ClassifyChangedPath(path),
+                matched = matchedPaths.Contains(NormalizePath(path))
+            }).ToList(),
+            unmatchedChangedFiles = changedFiles
+                .Where(path => !matchedPaths.Contains(NormalizePath(path)))
+                .Take(20)
+                .ToList(),
+            findings = findings.Select(finding => new
+            {
+                finding.Severity,
+                finding.Code,
+                finding.Message,
+                finding.ModPackageId,
+                finding.DefName,
+                finding.FilePath,
+                finding.XPath,
+                finding.Suggestion
+            }).ToList()
+        });
+    }
+
+    [McpServerTool, Description("Validate only changed defs and patches from the repo or an explicit file list.")]
+    public static string ValidateChangedContent(
+        ServerData serverData,
+        ProjectContext projectContext,
+        [Description("Optional git base ref, for example origin/main")] string? baseRef = null,
+        [Description("Optional explicit file paths to validate instead of using git")] string[]? paths = null,
+        [Description("Optional DLC compatibility target override")] string? allowedDlcs = null,
+        [Description("Optional Player.log path override")] string? logPath = null,
+        [Description("Maximum examples to return per section")] int maxResults = 25)
+    {
+        var changedFiles = ResolveChangedFiles(projectContext, baseRef, paths);
+        if (changedFiles.Count == 0)
+        {
+            return Serialize(new { error = "No changed files were found for the requested scope." });
+        }
+
+        var changedDefs = GetChangedDefs(serverData, changedFiles).ToList();
+        var changedPatches = GetChangedPatches(serverData, changedFiles).ToList();
+        var affectedMods = GetChangedMods(serverData, changedFiles)
+            .Concat(changedDefs.Select(def => def.Mod))
+            .Concat(changedPatches.Select(patch => patch.Mod))
+            .DistinctBy(mod => mod.PackageId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var hotspotsByXPath = BuildAllPatchHotspots(serverData, null)
+            .ToDictionary(hotspot => NormalizeXPath(hotspot.XPath), StringComparer.OrdinalIgnoreCase);
+
+        var defChecks = changedDefs
+            .Take(Math.Max(1, maxResults))
+            .Select(def =>
+            {
+                var issues = new List<object>();
+                var hasError = false;
+                try
+                {
+                    _ = XDocument.Parse(def.Content.ToString());
+                }
+                catch (Exception ex)
+                {
+                    hasError = true;
+                    issues.Add(new { severity = "error", code = "xml_parse", message = ex.Message });
+                }
+
+                if (!string.IsNullOrWhiteSpace(def.Parent) && FindDefByName(serverData, def.Parent) == null)
+                {
+                    issues.Add(new { severity = "warning", code = "missing_parent", message = $"Missing parent '{def.Parent}'" });
+                }
+
+                foreach (var reference in GetUnresolvedReferences(def, serverData).Take(5))
+                {
+                    issues.Add(new { severity = "warning", code = "unresolved_reference", message = $"Missing reference '{reference.Value}'", reference.Path });
+                }
+
+                var status = hasError ? "blocked" : issues.Count > 0 ? "warning" : "ready";
+
+                return new
+                {
+                    def.DefName,
+                    def.Type,
+                    mod = new { packageId = def.Mod.PackageId, name = def.Mod.Name },
+                    def.FilePath,
+                    status,
+                    issues
+                };
+            })
+            .ToList();
+
+        var patchChecks = changedPatches
+            .Take(Math.Max(1, maxResults))
+            .Select(patch =>
+            {
+                var targetDefs = ExtractDefNamesFromXPath(patch.XPath);
+                var missingTargets = targetDefs
+                    .Where(targetDef => FindDefByName(serverData, targetDef) == null)
+                    .Take(6)
+                    .ToList();
+                var hotspot = hotspotsByXPath.GetValueOrDefault(NormalizeXPath(patch.XPath));
+                var status = missingTargets.Count > 0
+                    ? "warning"
+                    : hotspot != null && SeverityRank(hotspot.Severity) >= SeverityRank("warning")
+                        ? "warning"
+                        : "ready";
+
+                return new
+                {
+                    patch.FilePath,
+                    mod = new { packageId = patch.Mod.PackageId, name = patch.Mod.Name },
+                    operation = patch.Operation.ToString(),
+                    patch.XPath,
+                    status,
+                    targetDefs = targetDefs.Take(8).ToList(),
+                    missingTargets,
+                    hotspot = hotspot == null ? null : new
+                    {
+                        hotspot.Severity,
+                        hotspot.PatchCount,
+                        hotspot.Mods
+                    }
+                };
+            })
+            .ToList();
+
+        var dlcFindings = affectedMods
+            .SelectMany(mod => AnalyzeDlcDependenciesForMod(serverData, mod, ParseAllowedContentSet(allowedDlcs ?? projectContext.AllowedDlcs)))
+            .Take(Math.Max(1, maxResults))
+            .ToList();
+
+        var resolvedLogPath = logPath ?? projectContext.LogPath;
+        var logGroups = new List<object>();
+        if (!string.IsNullOrWhiteSpace(resolvedLogPath) && File.Exists(resolvedLogPath))
+        {
+            var incidents = AnalyzePlayerLog(serverData, resolvedLogPath, null);
+            var affectedModNames = affectedMods.SelectMany(mod => new[] { mod.PackageId, mod.Name }).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            logGroups = incidents
+                .Where(incident => incident.MentionedMods.Any(affectedModNames.Contains))
+                .GroupBy(incident => incident.Signature, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new
+                {
+                    category = group.First().Category,
+                    headline = group.First().Headline,
+                    count = group.Count()
+                })
+                .OrderByDescending(group => group.count)
+                .Take(Math.Max(1, maxResults))
+                .Cast<object>()
+                .ToList();
+        }
+
+        return Serialize(new
+        {
+            projectContext.ProjectRoot,
+            changeSource = paths != null && paths.Length > 0 ? "explicit_paths" : string.IsNullOrWhiteSpace(baseRef) ? "git_status" : "git_diff",
+            baseRef,
+            summary = new
+            {
+                changedFiles = changedFiles.Count,
+                changedDefs = changedDefs.Count,
+                changedPatches = changedPatches.Count,
+                affectedMods = affectedMods.Count,
+                blockedDefs = defChecks.Count(check => string.Equals(check.status, "blocked", StringComparison.OrdinalIgnoreCase)),
+                warningDefs = defChecks.Count(check => string.Equals(check.status, "warning", StringComparison.OrdinalIgnoreCase)),
+                warningPatches = patchChecks.Count(check => string.Equals(check.status, "warning", StringComparison.OrdinalIgnoreCase)),
+                dlcFindings = dlcFindings.Count,
+                runtimeLogGroups = logGroups.Count
+            },
+            changedFiles = changedFiles.Select(path => new { path, kind = ClassifyChangedPath(path) }).ToList(),
+            defChecks,
+            patchChecks,
+            dlcFindings = dlcFindings.Select(finding => new
+            {
+                finding.Severity,
+                finding.Kind,
+                finding.ForbiddenContent,
+                finding.Message,
+                finding.DefName,
+                finding.FilePath
+            }).ToList(),
+            runtimeLogGroups = logGroups
+        });
+    }
+
+    [McpServerTool, Description("Compare two Player.log files and show new, resolved, and regressed issue groups.")]
+    public static string ComparePlayerLogs(
+        ServerData serverData,
+        [Description("Path to the newer Player.log file")] string logPath,
+        [Description("Path to the older Player.log file")] string otherLogPath,
+        [Description("Optional: only include incidents clearly tied to this mod package ID")] string? modPackageId = null,
+        [Description("Maximum grouped issue buckets to return")] int maxResults = 15)
+    {
+        if (!File.Exists(logPath))
+        {
+            return Serialize(new { error = $"Log file '{logPath}' was not found" });
+        }
+
+        if (!File.Exists(otherLogPath))
+        {
+            return Serialize(new { error = $"Log file '{otherLogPath}' was not found" });
+        }
+
+        ModInfo? targetMod = null;
+        if (!string.IsNullOrWhiteSpace(modPackageId) && serverData.Mods.Count > 0)
+        {
+            targetMod = ResolveMod(serverData, modPackageId);
+            if (targetMod == null)
+            {
+                return Serialize(new { error = $"Mod '{modPackageId}' was not found" });
+            }
+        }
+
+        var current = GroupLogIncidents(AnalyzePlayerLog(serverData, logPath, targetMod));
+        var previous = GroupLogIncidents(AnalyzePlayerLog(serverData, otherLogPath, targetMod));
+
+        var newGroups = current.Values
+            .Where(group => !previous.ContainsKey(group.Signature))
+            .OrderByDescending(group => group.Count)
+            .Take(Math.Max(1, maxResults))
+            .ToList();
+
+        var resolvedGroups = previous.Values
+            .Where(group => !current.ContainsKey(group.Signature))
+            .OrderByDescending(group => group.Count)
+            .Take(Math.Max(1, maxResults))
+            .ToList();
+
+        var regressedGroups = current.Values
+            .Where(group => previous.TryGetValue(group.Signature, out var previousGroup) && group.Count > previousGroup.Count)
+            .OrderByDescending(group => group.Count)
+            .Take(Math.Max(1, maxResults))
+            .Select(group => new
+            {
+                group.Category,
+                group.Signature,
+                group.Headline,
+                currentCount = group.Count,
+                previousCount = previous[group.Signature].Count
+            })
+            .ToList();
+
+        object? filteredMod = targetMod == null
+            ? modPackageId
+            : new { packageId = targetMod.PackageId, name = targetMod.Name };
+
+        return Serialize(new
+        {
+            currentLogPath = logPath,
+            previousLogPath = otherLogPath,
+            filteredMod,
+            summary = new
+            {
+                currentGroups = current.Count,
+                previousGroups = previous.Count,
+                newGroups = newGroups.Count,
+                resolvedGroups = resolvedGroups.Count,
+                regressedGroups = regressedGroups.Count
+            },
+            newGroups,
+            resolvedGroups,
+            regressedGroups
+        });
+    }
+
+    [McpServerTool, Description("Find high-density XML patch hotspots, including repeated single-mod edits and cross-mod collisions.")]
+    public static string FindPatchHotspots(
+        ServerData serverData,
+        [Description("Optional: only include hotspots involving this mod package ID")] string? modPackageId = null,
+        [Description("Minimum severity to include: info, warning, or error")] string severity = "info",
+        [Description("Maximum hotspots to return")] int maxResults = 25)
+    {
+        if (!string.IsNullOrWhiteSpace(modPackageId) && ResolveMod(serverData, modPackageId) == null)
+        {
+            return Serialize(new { error = $"Mod '{modPackageId}' was not found" });
+        }
+
+        var hotspots = BuildAllPatchHotspots(serverData, modPackageId)
+            .Where(hotspot => MeetsSeverityThreshold(hotspot.Severity, severity))
+            .OrderByDescending(hotspot => hotspot.Mods.Count)
+            .ThenByDescending(hotspot => hotspot.PatchCount)
+            .Take(Math.Max(1, maxResults))
+            .ToList();
+
+        return Serialize(new
+        {
+            filteredMod = modPackageId,
+            summary = new
+            {
+                hotspots = hotspots.Count,
+                crossModHotspots = hotspots.Count(hotspot => hotspot.Mods.Count > 1),
+                repeatedSingleModHotspots = hotspots.Count(hotspot => hotspot.Mods.Count == 1)
+            },
+            hotspots = hotspots.Select(hotspot => new
+            {
+                hotspot.Severity,
+                hotspot.XPath,
+                hotspot.PatchCount,
+                distinctMods = hotspot.Mods.Count,
+                hotspot.Operations,
+                hotspot.Mods,
+                hotspot.Files,
+                hotspot.TargetDefs
+            }).ToList()
+        });
+    }
+
+    [McpServerTool, Description("Explain why a broken DefName reference is likely failing and show the nearest loaded alternatives.")]
+    public static string BrokenReferenceExplainer(
+        ServerData serverData,
+        [Description("Broken reference or target DefName to explain")] string reference,
+        [Description("Optional source definition name containing the broken reference")] string? defName = null)
+    {
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            return Serialize(new { error = "reference is required" });
+        }
+
+        var sourceDefs = new List<RimWorldDef>();
+        if (!string.IsNullOrWhiteSpace(defName))
+        {
+            var sourceDef = FindDefByName(serverData, defName);
+            if (sourceDef == null)
+            {
+                return Serialize(new { error = $"Definition '{defName}' was not found" });
+            }
+
+            sourceDefs.Add(sourceDef);
+        }
+        else
+        {
+            sourceDefs = serverData.Defs.Values
+                .Where(def => GetUnresolvedReferences(def, serverData).Any(entry => string.Equals(entry.Value, reference, StringComparison.OrdinalIgnoreCase)))
+                .Take(12)
+                .ToList();
+        }
+
+        var observations = sourceDefs
+            .Select(def => new
+            {
+                def.DefName,
+                def.Type,
+                mod = new { packageId = def.Mod.PackageId, name = def.Mod.Name },
+                def.FilePath,
+                matches = GetUnresolvedReferences(def, serverData)
+                    .Where(entry => string.Equals(entry.Value, reference, StringComparison.OrdinalIgnoreCase))
+                    .Select(entry => new { entry.Value, entry.Path })
+                    .ToList()
+            })
+            .Where(item => item.matches.Count > 0)
+            .ToList();
+
+        var exactCaseInsensitiveMatch = serverData.Defs.Values
+            .Concat(serverData.AbstractDefs.Values)
+            .FirstOrDefault(def => string.Equals(def.DefName, reference, StringComparison.OrdinalIgnoreCase));
+
+        var similarDefs = FindSimilarDefCandidates(serverData, reference)
+            .Take(8)
+            .Select(candidate => new
+            {
+                candidate.DefName,
+                candidate.Type,
+                mod = new { packageId = candidate.Mod.PackageId, name = candidate.Mod.Name },
+                candidate.FilePath
+            })
+            .ToList();
+
+        var likelyCauses = new List<object>();
+        if (exactCaseInsensitiveMatch != null && !string.Equals(exactCaseInsensitiveMatch.DefName, reference, StringComparison.Ordinal))
+        {
+            likelyCauses.Add(new
+            {
+                kind = "case_mismatch",
+                message = $"A loaded def named '{exactCaseInsensitiveMatch.DefName}' exists with different casing."
+            });
+        }
+
+        if (similarDefs.Count > 0)
+        {
+            likelyCauses.Add(new
+            {
+                kind = "renamed_or_misspelled",
+                message = "Loaded defs with similar names exist. The reference may be stale, renamed, or misspelled."
+            });
+        }
+
+        if (sourceDefs.Any(def =>
+                serverData.Conflicts.Any(conflict =>
+                    conflict.Type == ConflictType.MissingDependency &&
+                    conflict.Mods.Any(mod => string.Equals(mod.PackageId, def.Mod.PackageId, StringComparison.OrdinalIgnoreCase)))))
+        {
+            likelyCauses.Add(new
+            {
+                kind = "missing_dependency",
+                message = "One or more source mods already have missing dependency conflicts. The reference may belong to a dependency that is not loaded."
+            });
+        }
+
+        if (observations.Count == 0)
+        {
+            likelyCauses.Add(new
+            {
+                kind = "not_observed",
+                message = "No loaded def currently exposes this exact unresolved reference value."
+            });
+        }
+
+        var nextChecks = new List<string>();
+        if (exactCaseInsensitiveMatch != null && !string.Equals(exactCaseInsensitiveMatch.DefName, reference, StringComparison.Ordinal))
+        {
+            nextChecks.Add($"Update the reference to '{exactCaseInsensitiveMatch.DefName}'.");
+        }
+
+        if (similarDefs.Count > 0)
+        {
+            nextChecks.Add("Compare the reference against the nearest loaded alternatives and check for a rename.");
+        }
+
+        if (sourceDefs.Count > 0)
+        {
+            nextChecks.Add("Inspect the source def's dependencies and load-order constraints.");
+        }
+
+        return Serialize(new
+        {
+            reference,
+            defName,
+            summary = new
+            {
+                sourceDefs = observations.Count,
+                similarDefs = similarDefs.Count,
+                likelyCauses = likelyCauses.Count
+            },
+            observations,
+            likelyCauses,
+            similarDefs,
+            nextChecks = nextChecks.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+        });
+    }
+
+    [McpServerTool, Description("Search defs, patches, and mods inside a specific scope instead of the whole loaded dataset.")]
+    public static string ScopeSearch(
+        ServerData serverData,
+        [Description("Scope type: mod, def, def_type, or path")] string scopeType,
+        [Description("Scope value for the selected scope type")] string scopeValue,
+        [Description("Search term to match inside defs, patches, and mods")] string searchTerm,
+        [Description("Optional def type filter for matched defs")] string? inType = null,
+        [Description("Maximum matches per result section")] int maxResults = 25)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            return Serialize(new { error = "searchTerm is required" });
+        }
+
+        var normalizedScopeType = NormalizeScopeType(scopeType);
+        if (normalizedScopeType == null)
+        {
+            return Serialize(new { error = $"Unsupported scopeType '{scopeType}'. Use mod, def, def_type, or path." });
+        }
+
+        var scopedMods = GetScopedMods(serverData, normalizedScopeType, scopeValue).ToList();
+        var scopedDefs = GetScopedDefs(serverData, normalizedScopeType, scopeValue).ToList();
+        var scopedPatches = GetScopedPatches(serverData, normalizedScopeType, scopeValue, scopedDefs).ToList();
+
+        if (!string.IsNullOrWhiteSpace(inType))
+        {
+            scopedDefs = scopedDefs
+                .Where(def => string.Equals(def.Type, inType, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        var defMatches = scopedDefs
+            .Where(def =>
+                def.DefName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                def.Type.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                ResolveDefFilePath(def).Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                def.Content.ToString().Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            .Take(Math.Max(1, maxResults))
+            .Select(def => new
+            {
+                def.DefName,
+                def.Type,
+                mod = new { packageId = def.Mod.PackageId, name = def.Mod.Name },
+                filePath = ResolveDefFilePath(def)
+            })
+            .ToList();
+
+        var patchMatches = scopedPatches
+            .Where(patch =>
+                patch.FilePath.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                patch.XPath.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                patch.Operation.ToString().Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                ExtractDefNamesFromXPath(patch.XPath).Any(defNameValue => defNameValue.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)))
+            .Take(Math.Max(1, maxResults))
+            .Select(patch => new
+            {
+                patch.FilePath,
+                mod = new { packageId = patch.Mod.PackageId, name = patch.Mod.Name },
+                operation = patch.Operation.ToString(),
+                patch.XPath
+            })
+            .ToList();
+
+        var modMatches = scopedMods
+            .Where(mod =>
+                mod.PackageId.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                mod.Name.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                mod.Path.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            .Take(Math.Max(1, maxResults))
+            .Select(mod => new
+            {
+                mod.PackageId,
+                mod.Name,
+                mod.Path,
+                mod.LoadOrder
+            })
+            .ToList();
+
+        return Serialize(new
+        {
+            scope = new
+            {
+                type = normalizedScopeType,
+                value = scopeValue,
+                searchTerm,
+                inType
+            },
+            summary = new
+            {
+                matchedMods = modMatches.Count,
+                matchedDefs = defMatches.Count,
+                matchedPatches = patchMatches.Count
+            },
+            modMatches,
+            defMatches,
+            patchMatches
+        });
+    }
+
+    [McpServerTool, Description("Estimate what moving a mod before or after another mod would impact.")]
+    public static string LoadOrderImpactReport(
+        ServerData serverData,
+        [Description("Mod package ID to move")] string modPackageId,
+        [Description("Simulate moving the mod before this package ID")] string? moveBeforeModPackageId = null,
+        [Description("Simulate moving the mod after this package ID")] string? moveAfterModPackageId = null,
+        [Description("Maximum impacted mods to return")] int maxResults = 20)
+    {
+        var mod = ResolveMod(serverData, modPackageId);
+        if (mod == null)
+        {
+            return Serialize(new { error = $"Mod '{modPackageId}' was not found" });
+        }
+
+        if (string.IsNullOrWhiteSpace(moveBeforeModPackageId) == string.IsNullOrWhiteSpace(moveAfterModPackageId))
+        {
+            return Serialize(new { error = "Provide exactly one of moveBeforeModPackageId or moveAfterModPackageId." });
+        }
+
+        var anchorId = moveBeforeModPackageId ?? moveAfterModPackageId;
+        var anchor = ResolveMod(serverData, anchorId);
+        if (anchor == null)
+        {
+            return Serialize(new { error = $"Anchor mod '{anchorId}' was not found" });
+        }
+
+        var currentOrder = mod.LoadOrder;
+        var proposedOrder = !string.IsNullOrWhiteSpace(moveBeforeModPackageId)
+            ? anchor.LoadOrder - 0.5
+            : anchor.LoadOrder + 0.5;
+
+        var hotspotMap = BuildPatchHotspots(serverData, null)
+            .Where(hotspot => hotspot.Mods.Contains(mod.PackageId, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+        var impactedMods = serverData.Mods.Values
+            .Where(other => !string.Equals(other.PackageId, mod.PackageId, StringComparison.OrdinalIgnoreCase))
+            .Select(other =>
+            {
+                var reasons = new List<string>();
+                var severity = "info";
+
+                if (WouldFlipRelativeOrder(currentOrder, proposedOrder, other.LoadOrder))
+                {
+                    reasons.Add("Relative load order would flip.");
+                }
+
+                if (mod.Dependencies.Contains(other.PackageId, StringComparer.OrdinalIgnoreCase) && proposedOrder <= other.LoadOrder)
+                {
+                    severity = "blocked";
+                    reasons.Add("This mod depends on the other mod and should still load after it.");
+                }
+
+                if (other.Dependencies.Contains(mod.PackageId, StringComparer.OrdinalIgnoreCase) && proposedOrder >= other.LoadOrder)
+                {
+                    severity = "blocked";
+                    reasons.Add("The other mod depends on this mod and should load after it.");
+                }
+
+                if (mod.LoadBefore.Contains(other.PackageId, StringComparer.OrdinalIgnoreCase) && proposedOrder >= other.LoadOrder)
+                {
+                    severity = severity == "blocked" ? severity : "warning";
+                    reasons.Add("About.xml requests that this mod load before the other mod.");
+                }
+
+                if (mod.LoadAfter.Contains(other.PackageId, StringComparer.OrdinalIgnoreCase) && proposedOrder <= other.LoadOrder)
+                {
+                    severity = severity == "blocked" ? severity : "warning";
+                    reasons.Add("About.xml requests that this mod load after the other mod.");
+                }
+
+                var sharedConflicts = serverData.Conflicts
+                    .Where(conflict => conflict.Mods.Any(conflictMod => string.Equals(conflictMod.PackageId, mod.PackageId, StringComparison.OrdinalIgnoreCase)) &&
+                                       conflict.Mods.Any(conflictMod => string.Equals(conflictMod.PackageId, other.PackageId, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                if (sharedConflicts.Count > 0)
+                {
+                    severity = severity == "blocked" ? severity : "warning";
+                    reasons.Add("These mods already participate in a known conflict.");
+                }
+
+                var sharedHotspots = hotspotMap
+                    .Where(hotspot => hotspot.Mods.Contains(other.PackageId, StringComparer.OrdinalIgnoreCase))
+                    .Take(3)
+                    .ToList();
+
+                if (sharedHotspots.Count > 0)
+                {
+                    severity = severity == "blocked" ? severity : "warning";
+                    reasons.Add("These mods share XML patch hotspots.");
+                }
+
+                return new
+                {
+                    mod = new { other.PackageId, other.Name, other.LoadOrder },
+                    severity,
+                    reasons,
+                    conflictCount = sharedConflicts.Count,
+                    hotspotCount = sharedHotspots.Count
+                };
+            })
+            .Where(item => item.reasons.Count > 0)
+            .OrderByDescending(item => SeverityRank(item.severity))
+            .ThenByDescending(item => item.conflictCount + item.hotspotCount)
+            .Take(Math.Max(1, maxResults))
+            .ToList();
+
+        return Serialize(new
+        {
+            mod = new { mod.PackageId, mod.Name, mod.LoadOrder },
+            proposal = new
+            {
+                action = !string.IsNullOrWhiteSpace(moveBeforeModPackageId) ? "move_before" : "move_after",
+                anchor = new { anchor.PackageId, anchor.Name, anchor.LoadOrder },
+                currentLoadOrder = currentOrder,
+                proposedRelativePosition = proposedOrder
+            },
+            summary = new
+            {
+                impactedMods = impactedMods.Count,
+                blocked = impactedMods.Count(item => string.Equals(item.severity, "blocked", StringComparison.OrdinalIgnoreCase)),
+                warnings = impactedMods.Count(item => string.Equals(item.severity, "warning", StringComparison.OrdinalIgnoreCase))
+            },
+            impactedMods
         });
     }
 
@@ -921,14 +1808,15 @@ public static class ModWorkflowTools
     {
         var relevantPatches = serverData.GlobalPatches
             .Where(patch => !string.IsNullOrWhiteSpace(patch.XPath))
-            .Where(patch => string.IsNullOrWhiteSpace(modPackageId) ||
-                            string.Equals(patch.Mod.PackageId, modPackageId, StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(patch.Mod.Name, modPackageId, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         return relevantPatches
             .GroupBy(patch => NormalizeXPath(patch.XPath), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Select(patch => patch.Mod.PackageId).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1)
+            .Where(group => string.IsNullOrWhiteSpace(modPackageId) ||
+                            group.Any(patch =>
+                                string.Equals(patch.Mod.PackageId, modPackageId, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(patch.Mod.Name, modPackageId, StringComparison.OrdinalIgnoreCase)))
             .Select(group =>
             {
                 var patches = group.ToList();
@@ -950,6 +1838,271 @@ public static class ModWorkflowTools
                     targetDefs);
             })
             .ToArray();
+    }
+
+    private static PatchHotspot[] BuildAllPatchHotspots(ServerData serverData, string? modPackageId)
+    {
+        var relevantPatches = serverData.GlobalPatches
+            .Where(patch => !string.IsNullOrWhiteSpace(patch.XPath))
+            .ToList();
+
+        return relevantPatches
+            .GroupBy(patch => NormalizeXPath(patch.XPath), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Where(group => string.IsNullOrWhiteSpace(modPackageId) ||
+                            group.Any(patch =>
+                                string.Equals(patch.Mod.PackageId, modPackageId, StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(patch.Mod.Name, modPackageId, StringComparison.OrdinalIgnoreCase)))
+            .Select(group =>
+            {
+                var patches = group.ToList();
+                var distinctMods = patches
+                    .Select(patch => patch.Mod.PackageId)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                var severity = distinctMods.Count > 1 ? DeterminePatchHotspotSeverity(patches) : "info";
+                var operations = patches
+                    .Select(patch => patch.Operation.ToString())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                var targetDefs = patches
+                    .SelectMany(patch => ExtractDefNamesFromXPath(patch.XPath))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(8)
+                    .ToList();
+
+                return new PatchHotspot(
+                    severity,
+                    group.Key,
+                    patches.Count,
+                    operations,
+                    distinctMods,
+                    patches.Select(patch => patch.FilePath).Distinct(StringComparer.OrdinalIgnoreCase).Take(8).ToList(),
+                    targetDefs);
+            })
+            .ToArray();
+    }
+
+    private static Dictionary<string, LogGroup> GroupLogIncidents(IEnumerable<LogIncident> incidents)
+    {
+        return incidents
+            .GroupBy(incident => incident.Signature, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var sample = group.First();
+                    return new LogGroup(
+                        sample.Category,
+                        sample.Signature,
+                        sample.Headline,
+                        group.Count(),
+                        group.SelectMany(item => item.MentionedDefs).Distinct(StringComparer.OrdinalIgnoreCase).Take(6).ToList(),
+                        group.SelectMany(item => item.MentionedFiles).Distinct(StringComparer.OrdinalIgnoreCase).Take(4).ToList(),
+                        group.SelectMany(item => item.MentionedMods).Distinct(StringComparer.OrdinalIgnoreCase).Take(6).ToList());
+                },
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static List<string> ResolveChangedFiles(ProjectContext projectContext, string? baseRef, string[]? explicitPaths)
+    {
+        if (explicitPaths != null && explicitPaths.Length > 0)
+        {
+            return explicitPaths
+                .SelectMany(path => ExpandChangedPath(path, projectContext.ProjectRoot))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        if (!Directory.Exists(projectContext.ProjectRoot))
+        {
+            return [];
+        }
+
+        return string.IsNullOrWhiteSpace(baseRef)
+            ? GetChangedFilesFromGitStatus(projectContext.ProjectRoot)
+            : GetChangedFilesFromGitDiff(projectContext.ProjectRoot, baseRef);
+    }
+
+    private static List<string> GetChangedFilesFromGitStatus(string projectRoot)
+    {
+        var output = RunGit(projectRoot, "status", "--porcelain", "--untracked-files=all");
+        return output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.TrimEnd('\r'))
+            .Select(line => line.Length >= 4 ? line[3..].Trim() : string.Empty)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path.Contains(" -> ", StringComparison.Ordinal) ? path.Split(" -> ", StringSplitOptions.TrimEntries).Last() : path)
+            .Select(path => Path.GetFullPath(Path.Combine(projectRoot, path)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<string> GetChangedFilesFromGitDiff(string projectRoot, string baseRef)
+    {
+        var output = RunGit(projectRoot, "diff", "--name-only", "--diff-filter=ACMR", $"{baseRef}...HEAD");
+        return output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(path => Path.GetFullPath(Path.Combine(projectRoot, path.Trim())))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string RunGit(string projectRoot, params string[] arguments)
+    {
+        using var process = new Process();
+        process.StartInfo = new ProcessStartInfo
+        {
+            FileName = "git",
+            WorkingDirectory = projectRoot,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+
+        foreach (var argument in arguments)
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+
+        process.Start();
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(stderr)
+                ? "git command failed while resolving changed files."
+                : stderr.Trim());
+        }
+
+        return stdout;
+    }
+
+    private static IEnumerable<string> ExpandChangedPath(string path, string projectRoot)
+    {
+        var resolved = Path.IsPathRooted(path)
+            ? Path.GetFullPath(path)
+            : Path.GetFullPath(Path.Combine(projectRoot, path));
+
+        if (Directory.Exists(resolved))
+        {
+            return Directory.EnumerateFiles(resolved, "*", SearchOption.AllDirectories);
+        }
+
+        return [resolved];
+    }
+
+    private static IEnumerable<RimWorldDef> GetChangedDefs(ServerData serverData, IReadOnlyCollection<string> changedFiles)
+    {
+        var changedSet = changedFiles.Select(NormalizePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return serverData.Defs.Values
+            .Where(def => changedSet.Contains(NormalizePath(ResolveDefFilePath(def))));
+    }
+
+    private static IEnumerable<PatchOperation> GetChangedPatches(ServerData serverData, IReadOnlyCollection<string> changedFiles)
+    {
+        var changedSet = changedFiles.Select(NormalizePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return serverData.GlobalPatches
+            .Where(patch => changedSet.Contains(NormalizePath(patch.FilePath)));
+    }
+
+    private static IEnumerable<ModInfo> GetChangedMods(ServerData serverData, IReadOnlyCollection<string> changedFiles)
+    {
+        return serverData.Mods.Values
+            .Where(mod => changedFiles.Any(path => IsPathUnderRoot(path, mod.Path)));
+    }
+
+    private static string NormalizePath(string path) =>
+        Path.GetFullPath(path)
+            .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
+            .TrimEnd(Path.DirectorySeparatorChar);
+
+    private static bool IsPathUnderRoot(string path, string root)
+    {
+        var normalizedPath = NormalizePath(path);
+        var normalizedRoot = NormalizePath(root);
+        return normalizedPath.StartsWith(normalizedRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(normalizedPath, normalizedRoot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ClassifyChangedPath(string path)
+    {
+        var extension = Path.GetExtension(path);
+        return extension.ToLowerInvariant() switch
+        {
+            ".xml" => "xml",
+            ".cs" => "code",
+            ".png" or ".jpg" or ".jpeg" or ".dds" => "texture",
+            ".wav" or ".ogg" => "sound",
+            ".dll" => "assembly",
+            _ => "other"
+        };
+    }
+
+    private static IEnumerable<RimWorldDef> FindSimilarDefCandidates(ServerData serverData, string reference)
+    {
+        var normalizedReference = reference.Replace("_", string.Empty, StringComparison.Ordinal).Replace("-", string.Empty, StringComparison.Ordinal);
+        var allDefs = serverData.Defs.Values.Concat(serverData.AbstractDefs.Values)
+            .DistinctBy(def => def.DefName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var closeMatches = allDefs
+            .Where(def =>
+                def.DefName.Contains(reference, StringComparison.OrdinalIgnoreCase) ||
+                reference.Contains(def.DefName, StringComparison.OrdinalIgnoreCase) ||
+                def.DefName.Replace("_", string.Empty, StringComparison.Ordinal).Replace("-", string.Empty, StringComparison.Ordinal)
+                    .Contains(normalizedReference, StringComparison.OrdinalIgnoreCase))
+            .Take(12)
+            .ToList();
+
+        if (closeMatches.Count >= 6)
+        {
+            return closeMatches;
+        }
+
+        return allDefs
+            .OrderBy(def => ComputeEditDistance(def.DefName, reference))
+            .ThenBy(def => def.DefName, StringComparer.OrdinalIgnoreCase)
+            .Take(8);
+    }
+
+    private static int ComputeEditDistance(string left, string right)
+    {
+        var matrix = new int[left.Length + 1, right.Length + 1];
+
+        for (var i = 0; i <= left.Length; i++)
+        {
+            matrix[i, 0] = i;
+        }
+
+        for (var j = 0; j <= right.Length; j++)
+        {
+            matrix[0, j] = j;
+        }
+
+        for (var i = 1; i <= left.Length; i++)
+        {
+            for (var j = 1; j <= right.Length; j++)
+            {
+                var cost = char.ToUpperInvariant(left[i - 1]) == char.ToUpperInvariant(right[j - 1]) ? 0 : 1;
+                matrix[i, j] = Math.Min(
+                    Math.Min(matrix[i - 1, j] + 1, matrix[i, j - 1] + 1),
+                    matrix[i - 1, j - 1] + cost);
+            }
+        }
+
+        return matrix[left.Length, right.Length];
+    }
+
+    private static bool WouldFlipRelativeOrder(double currentOrder, double proposedOrder, int otherLoadOrder)
+    {
+        var currentlyBefore = currentOrder < otherLoadOrder;
+        var proposedBefore = proposedOrder < otherLoadOrder;
+        return currentlyBefore != proposedBefore;
     }
 
     private static IEnumerable<RimWorldDef> GetCoverageDefs(ServerData serverData, string? modPackageId, string? defType)
@@ -1184,11 +2337,16 @@ public static class ModWorkflowTools
             "def" => FindDefByName(serverData, scopeValue) is { } def ? [def] : [],
             "def_type" => serverData.Defs.Values.Where(def => string.Equals(def.Type, scopeValue, StringComparison.OrdinalIgnoreCase)),
             "path" => serverData.Defs.Values.Where(def =>
-                def.FilePath.Contains(scopeValue, StringComparison.OrdinalIgnoreCase) ||
+                ResolveDefFilePath(def).Contains(scopeValue, StringComparison.OrdinalIgnoreCase) ||
                 def.Mod.Path.Contains(scopeValue, StringComparison.OrdinalIgnoreCase)),
             _ => []
         };
     }
+
+    private static string ResolveDefFilePath(RimWorldDef def) =>
+        Path.IsPathRooted(def.FilePath)
+            ? def.FilePath
+            : Path.Combine(def.Mod.Path, def.FilePath);
 
     private static IEnumerable<PatchOperation> GetScopedPatches(ServerData serverData, string scopeType, string scopeValue, IReadOnlyCollection<RimWorldDef> scopedDefs)
     {

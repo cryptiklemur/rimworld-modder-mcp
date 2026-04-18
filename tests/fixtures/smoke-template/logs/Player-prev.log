@@ -1,0 +1,5 @@
+[Info] Previous smoke test log
+XML error in file /workspace/Mods/Alpha/Defs/AlphaDefs.xml: Could not resolve cross-reference: No RimWorldDef named "MissingRelic" found to give to ThingDef "AlphaBrokenWidget".
+Verse.Log:Error(String)
+NullReferenceException: previous smoke-only failure in example.alpha
+Verse.Root.PlayUpdate()

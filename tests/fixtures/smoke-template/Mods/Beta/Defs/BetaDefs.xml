@@ -1,0 +1,82 @@
+<Defs>
+  <ThingDef ParentName="BaseWeapon">
+    <defName>SharedSword</defName>
+    <label>shared sword beta</label>
+    <description>Beta override of the shared sword.</description>
+    <graphicData>
+      <texPath>Weapons/SharedSwordBeta</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>260</MarketValue>
+      <Mass>2.0</Mass>
+    </statBases>
+    <verbs>
+      <li>
+        <range>1.8</range>
+        <warmupTime>0.12</warmupTime>
+        <defaultCooldownTime>0.9</defaultCooldownTime>
+      </li>
+    </verbs>
+    <tools>
+      <li>
+        <label>slash</label>
+        <power>22</power>
+        <cooldownTime>0.95</cooldownTime>
+      </li>
+    </tools>
+    <costList>
+      <SteelIngot>28</SteelIngot>
+      <WoodLog>1</WoodLog>
+    </costList>
+  </ThingDef>
+
+  <ThingDef ParentName="BaseWeapon">
+    <defName>BetaBlade</defName>
+    <label>beta blade</label>
+    <description>Cross-mod near-duplicate for similarity checks.</description>
+    <graphicData>
+      <texPath>Weapons/BetaBlade</texPath>
+    </graphicData>
+    <qualityRange>Normal Legendary</qualityRange>
+    <statBases>
+      <MarketValue>448</MarketValue>
+      <Mass>1.8</Mass>
+    </statBases>
+    <verbs>
+      <li>
+        <range>1.7</range>
+        <warmupTime>0.16</warmupTime>
+        <defaultCooldownTime>1.0</defaultCooldownTime>
+      </li>
+    </verbs>
+    <tools>
+      <li>
+        <label>slash</label>
+        <power>18</power>
+        <cooldownTime>1.05</cooldownTime>
+      </li>
+    </tools>
+    <costList>
+      <SteelIngot>30</SteelIngot>
+      <WoodLog>2</WoodLog>
+    </costList>
+    <workAmount>1800</workAmount>
+  </ThingDef>
+
+  <ThingDef>
+    <defName>BetaIdolBlade</defName>
+    <label>beta idol blade</label>
+    <description>References Ideology-only content for DLC scans.</description>
+    <graphicData>
+      <texPath>Weapons/BetaIdolBlade</texPath>
+    </graphicData>
+    <thingDef>IdeologyRelic</thingDef>
+    <stuffCategories>
+      <li>IdeologyRelic</li>
+    </stuffCategories>
+    <statBases>
+      <MarketValue>700</MarketValue>
+      <Mass>2.2</Mass>
+    </statBases>
+  </ThingDef>
+</Defs>

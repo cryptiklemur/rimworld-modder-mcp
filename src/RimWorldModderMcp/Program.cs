@@ -1,496 +1,749 @@
 using System.CommandLine;
+using System.CommandLine.Parsing;
 using System.Reflection;
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RimWorldModderMcp.Models;
 using RimWorldModderMcp.Services;
-using RimWorldModderMcp.Tools.RimWorld;
-using RimWorldModderMcp.Tools.Conflicts;
-using RimWorldModderMcp.Tools.Statistics;
-using RimWorldModderMcp.Tools.Patch;
-using RimWorldModderMcp.Tools.Performance;
-using RimWorldModderMcp.Tools.Development;
-using RimWorldModderMcp.Tools.GameMechanics;
 
 namespace RimWorldModderMcp;
 
-class Program
+internal static class Program
 {
     static async Task<int> Main(string[] args)
     {
-        RootCommand rootCommand = new("RimWorld Modder MCP - Analyze RimWorld defs, patches, compatibility, and modding workflows");
+        var rootCommand = new RootCommand("RimWorld Modder MCP - Analyze RimWorld defs, patches, compatibility, and modding workflows");
 
-        Option<string> rimworldPathOption = new(
+        var configOption = new Option<string>(
+            name: "--config",
+            description: "Path to a .rimworld-modder-mcp.json project config file");
+
+        var projectRootOption = new Option<string>(
+            name: "--project-root",
+            description: "Project root used for config discovery and relative path resolution");
+
+        var rimworldPathOption = new Option<string>(
             name: "--rimworld-path",
-            description: "Path to RimWorld installation")
-        {
-            IsRequired = true
-        };
+            description: "Path to the RimWorld installation");
 
-        Option<string[]> modDirsOption = new(
+        var modDirsOption = new Option<string[]>(
             name: "--mod-dirs",
             description: "Comma-separated list of mod directories to scan",
             getDefaultValue: () => Array.Empty<string>());
 
-        Option<string> modsConfigPathOption = new(
+        var modsConfigPathOption = new Option<string>(
             name: "--mods-config-path",
-            description: "Path to ModsConfig.xml file to filter only enabled mods");
+            description: "Path to ModsConfig.xml");
 
-        Option<string> serverNameOption = new(
+        var serverNameOption = new Option<string>(
             name: "--server-name",
             description: "Server name",
             getDefaultValue: () => "rimworld-modder");
 
-        Option<string> serverVersionOption = new(
+        var serverVersionOption = new Option<string>(
             name: "--server-version",
             description: "Server version",
             getDefaultValue: GetDefaultServerVersion);
 
-        Option<int> modConcurrencyOption = new(
+        var modConcurrencyOption = new Option<int>(
             name: "--mod-concurrency",
             description: "Number of mods to process simultaneously",
-            getDefaultValue: () => Environment.ProcessorCount / 4);
+            getDefaultValue: () => Math.Max(1, Environment.ProcessorCount / 4));
 
-        Option<int> modBatchSizeOption = new(
+        var modBatchSizeOption = new Option<int>(
             name: "--mod-batch-size",
             description: "Number of mods to load in parallel",
             getDefaultValue: () => Math.Max(4, Environment.ProcessorCount / 2));
 
-        Option<string> logLevelOption = new(
+        var logLevelOption = new Option<string>(
             name: "--log-level",
             description: "Logging level: Debug, Information, Warning, Error",
             getDefaultValue: () => "Information");
 
-        Option<string> rimworldVersionOption = new(
+        var rimworldVersionOption = new Option<string>(
             name: "--rimworld-version",
-            description: "RimWorld version for mod compatibility (affects which mod assemblies to include)",
+            description: "RimWorld version for mod compatibility",
             getDefaultValue: () => "1.6");
 
-        Option<string> toolOption = new(
+        var toolOption = new Option<string>(
             name: "--tool",
-            description: "Execute a specific tool instead of starting MCP server");
+            description: "Execute a specific tool instead of starting the MCP server");
 
-        Option<string> defNameOption = new(
+        var genericParamOption = new Option<string[]>(
+            name: "--param",
+            description: "Generic tool argument in key=value form; repeat for multiple arguments",
+            getDefaultValue: () => Array.Empty<string>());
+
+        var outputModeOption = new Option<string>(
+            name: "--output-mode",
+            description: "Output mode: compact, normal, or detailed");
+
+        var pageSizeOption = new Option<int>(
+            name: "--page-size",
+            description: "Maximum items returned per array-valued section");
+
+        var pageOffsetOption = new Option<int>(
+            name: "--page-offset",
+            description: "Offset to apply before paging array-valued sections");
+
+        var handleResultsOption = new Option<bool>(
+            name: "--handle-results",
+            description: "Store a retrievable result handle for this response");
+
+        var handleOption = new Option<string>(
+            name: "--handle",
+            description: "Stored result handle for get_result_by_handle");
+
+        var defNameOption = new Option<string>(
             name: "--defName",
-            description: "Definition name for get_def tool");
+            description: "Definition name");
 
-        Option<string> typeOption = new(
+        var typeOption = new Option<string>(
             name: "--type",
-            description: "Type for get_defs_by_type tool");
+            description: "Definition type");
 
-        Option<string> searchTermOption = new(
+        var searchTermOption = new Option<string>(
             name: "--searchTerm",
-            description: "Search term for search_defs tool");
+            description: "Search term");
 
-        Option<string> inTypeOption = new(
+        var inTypeOption = new Option<string>(
             name: "--inType",
-            description: "Type filter for search_defs tool");
+            description: "Type filter");
 
-        Option<int> maxResultsOption = new(
+        var maxResultsOption = new Option<int>(
             name: "--maxResults",
-            description: "Maximum results for search tools",
+            description: "Maximum results to return",
             getDefaultValue: () => 100);
 
-        Option<string> modPackageIdOption = new(
+        var modPackageIdOption = new Option<string>(
             name: "--modPackageId",
-            description: "Mod package ID for get_conflicts tool");
+            description: "Mod package ID");
 
-        Option<string> conflictTypeOption = new(
+        var conflictTypeOption = new Option<string>(
             name: "--conflictType",
-            description: "Conflict type for get_conflicts tool");
+            description: "Conflict type");
 
-        Option<string> severityOption = new(
+        var severityOption = new Option<string>(
             name: "--severity",
-            description: "Severity for get_conflicts tool");
+            description: "Minimum severity filter");
 
-        Option<bool> includeInactiveOption = new(
+        var includeInactiveOption = new Option<bool>(
             name: "--includeInactive",
-            description: "Include references from inactive mods for get_references tool",
-            getDefaultValue: () => false);
+            description: "Include references from inactive mods");
 
-        Option<string> xpathOption = new(
+        var xpathOption = new Option<string>(
             name: "--xpath",
-            description: "XPath expression for validate_xpath tool");
+            description: "XPath expression");
 
-        Option<string> defName1Option = new(
+        var defName1Option = new Option<string>(
             name: "--defName1",
-            description: "First definition name for compare_defs tool");
+            description: "First definition name");
 
-        Option<string> defName2Option = new(
-            name: "--defName2", 
-            description: "Second definition name for compare_defs tool");
+        var defName2Option = new Option<string>(
+            name: "--defName2",
+            description: "Second definition name");
 
-        Option<string> modPackageId1Option = new(
+        var modPackageId1Option = new Option<string>(
             name: "--modPackageId1",
-            description: "First mod package ID for mod analysis tools");
+            description: "First mod package ID");
 
-        Option<string> modPackageId2Option = new(
+        var modPackageId2Option = new Option<string>(
             name: "--modPackageId2",
-            description: "Second mod package ID for mod analysis tools");
+            description: "Second mod package ID");
 
-        Option<double> similarityThresholdOption = new(
+        var similarityThresholdOption = new Option<double>(
             name: "--similarityThreshold",
-            description: "Similarity threshold for find_duplicate_content tool (0.0-1.0)",
+            description: "Similarity threshold",
             getDefaultValue: () => 0.9);
 
-        Option<string> languageOption = new(
+        var languageOption = new Option<string>(
             name: "--language",
-            description: "Language for validate_localization tool");
+            description: "Language");
 
-        Option<string> assetTypeOption = new(
+        var assetTypeOption = new Option<string>(
             name: "--assetType",
-            description: "Asset type for find_unused_assets tool (textures, sounds, all)",
+            description: "Asset type",
             getDefaultValue: () => "all");
 
-        Option<string> severityLevelOption = new(
+        var severityLevelOption = new Option<string>(
             name: "--severityLevel",
-            description: "Severity level for lint_xml tool (info, warning, error)",
+            description: "Severity level",
             getDefaultValue: () => "warning");
 
-        Option<string> formatOption = new(
+        var formatOption = new Option<string>(
             name: "--format",
-            description: "Format for export/generation tools",
+            description: "Export or documentation format",
             getDefaultValue: () => "json");
 
-        Option<int> maxDefinitionsOption = new(
+        var maxDefinitionsOption = new Option<int>(
             name: "--maxDefinitions",
-            description: "Maximum definitions for export_definitions tool",
+            description: "Maximum definitions to export",
             getDefaultValue: () => 1000);
 
-        Option<string> focusStatOption = new(
+        var focusStatOption = new Option<string>(
             name: "--focusStat",
-            description: "Stat to focus analysis on for analyze_balance tool");
+            description: "Stat to focus analysis on");
 
-        Option<string> directionOption = new(
+        var directionOption = new Option<string>(
             name: "--direction",
-            description: "Chain direction for get_recipe_chains tool (ingredients, products, both)",
+            description: "Chain direction",
             getDefaultValue: () => "both");
 
-        Option<int> maxDepthOption = new(
+        var maxDepthOption = new Option<int>(
             name: "--maxDepth",
-            description: "Maximum chain depth for get_recipe_chains tool",
+            description: "Maximum chain depth",
             getDefaultValue: () => 5);
 
-        Option<string> targetResearchOption = new(
+        var targetResearchOption = new Option<string>(
             name: "--targetResearch",
-            description: "Target research for find_research_paths tool");
+            description: "Target research");
 
-        Option<bool> includeAllPathsOption = new(
+        var includeAllPathsOption = new Option<bool>(
             name: "--includeAllPaths",
-            description: "Include all possible paths for find_research_paths tool",
-            getDefaultValue: () => false);
+            description: "Include all possible paths");
 
-        Option<string> biomeDefNameOption = new(
+        var biomeDefNameOption = new Option<string>(
             name: "--biomeDefName",
-            description: "Specific biome for get_biome_compatibility tool");
+            description: "Biome definition name");
 
-        Option<string> contentTypeOption = new(
+        var contentTypeOption = new Option<string>(
             name: "--contentType",
-            description: "Content type for biome analysis (animals, plants, terrain, all)",
+            description: "Content type",
             getDefaultValue: () => "all");
 
-        Option<string> targetDefNameOption = new(
+        var targetDefNameOption = new Option<string>(
             name: "--targetDefName",
-            description: "Target definition name for various tools");
+            description: "Target definition name");
 
-        Option<bool> includeComfortOption = new(
+        var includeComfortOption = new Option<bool>(
             name: "--includeComfort",
-            description: "Include comfort calculations for calculate_room_requirements tool",
+            description: "Include comfort calculations",
             getDefaultValue: () => true);
 
-        Option<string> logPathOption = new(
+        var logPathOption = new Option<string>(
             name: "--logPath",
-            description: "Player.log path for log and readiness tools");
+            description: "Path to Player.log or Player-prev.log");
 
-        Option<string> allowedDlcsOption = new(
+        var otherLogPathOption = new Option<string>(
+            name: "--otherLogPath",
+            description: "Second log path for compare_player_logs");
+
+        var allowedDlcsOption = new Option<string>(
             name: "--allowedDlcs",
             description: "Comma-separated official content set to allow",
             getDefaultValue: () => "Core,Biotech");
 
-        Option<string> scopeTypeOption = new(
+        var scopeTypeOption = new Option<string>(
             name: "--scopeType",
-            description: "Scope type for audit_scope: mod, def, def_type, or path");
+            description: "Scope type: mod, def, def_type, or path");
 
-        Option<string> scopeValueOption = new(
+        var scopeValueOption = new Option<string>(
             name: "--scopeValue",
-            description: "Scope value for audit_scope");
+            description: "Scope value");
 
-        rootCommand.AddOption(rimworldPathOption);
-        rootCommand.AddOption(modDirsOption);
-        rootCommand.AddOption(modsConfigPathOption);
-        rootCommand.AddOption(serverNameOption);
-        rootCommand.AddOption(serverVersionOption);
-        rootCommand.AddOption(modConcurrencyOption);
-        rootCommand.AddOption(modBatchSizeOption);
-        rootCommand.AddOption(logLevelOption);
-        rootCommand.AddOption(rimworldVersionOption);
-        rootCommand.AddOption(toolOption);
-        rootCommand.AddOption(defNameOption);
-        rootCommand.AddOption(typeOption);
-        rootCommand.AddOption(searchTermOption);
-        rootCommand.AddOption(inTypeOption);
-        rootCommand.AddOption(maxResultsOption);
-        rootCommand.AddOption(modPackageIdOption);
-        rootCommand.AddOption(conflictTypeOption);
-        rootCommand.AddOption(severityOption);
-        rootCommand.AddOption(includeInactiveOption);
-        rootCommand.AddOption(xpathOption);
-        rootCommand.AddOption(defName1Option);
-        rootCommand.AddOption(defName2Option);
-        rootCommand.AddOption(modPackageId1Option);
-        rootCommand.AddOption(modPackageId2Option);
-        rootCommand.AddOption(similarityThresholdOption);
-        rootCommand.AddOption(languageOption);
-        rootCommand.AddOption(assetTypeOption);
-        rootCommand.AddOption(severityLevelOption);
-        rootCommand.AddOption(formatOption);
-        rootCommand.AddOption(maxDefinitionsOption);
-        rootCommand.AddOption(focusStatOption);
-        rootCommand.AddOption(directionOption);
-        rootCommand.AddOption(maxDepthOption);
-        rootCommand.AddOption(targetResearchOption);
-        rootCommand.AddOption(includeAllPathsOption);
-        rootCommand.AddOption(biomeDefNameOption);
-        rootCommand.AddOption(contentTypeOption);
-        rootCommand.AddOption(targetDefNameOption);
-        rootCommand.AddOption(includeComfortOption);
-        rootCommand.AddOption(logPathOption);
-        rootCommand.AddOption(allowedDlcsOption);
-        rootCommand.AddOption(scopeTypeOption);
-        rootCommand.AddOption(scopeValueOption);
+        var referenceOption = new Option<string>(
+            name: "--reference",
+            description: "Broken reference or target DefName to explain");
 
-        rootCommand.SetHandler(async (context) =>
+        var baseRefOption = new Option<string>(
+            name: "--baseRef",
+            description: "Git base ref for changed-file tools");
+
+        var pathsOption = new Option<string[]>(
+            name: "--paths",
+            description: "Comma-separated file paths to audit instead of discovering changed files",
+            getDefaultValue: () => Array.Empty<string>());
+
+        var moveBeforeModPackageIdOption = new Option<string>(
+            name: "--moveBeforeModPackageId",
+            description: "Simulate moving the mod before this mod package ID");
+
+        var moveAfterModPackageIdOption = new Option<string>(
+            name: "--moveAfterModPackageId",
+            description: "Simulate moving the mod after this mod package ID");
+
+        var options = new Option[]
         {
-            var rimworldPath = context.ParseResult.GetValueForOption(rimworldPathOption)!;
-            var modDirs = context.ParseResult.GetValueForOption(modDirsOption)!;
-            var modsConfigPath = context.ParseResult.GetValueForOption(modsConfigPathOption);
-            var serverName = context.ParseResult.GetValueForOption(serverNameOption)!;
-            var serverVersion = context.ParseResult.GetValueForOption(serverVersionOption)!;
-            var modConcurrency = context.ParseResult.GetValueForOption(modConcurrencyOption);
-            var modBatchSize = context.ParseResult.GetValueForOption(modBatchSizeOption);
-            var logLevel = context.ParseResult.GetValueForOption(logLevelOption)!;
-            var rimworldVersion = context.ParseResult.GetValueForOption(rimworldVersionOption)!;
-            var tool = context.ParseResult.GetValueForOption(toolOption);
+            configOption,
+            projectRootOption,
+            rimworldPathOption,
+            modDirsOption,
+            modsConfigPathOption,
+            serverNameOption,
+            serverVersionOption,
+            modConcurrencyOption,
+            modBatchSizeOption,
+            logLevelOption,
+            rimworldVersionOption,
+            toolOption,
+            genericParamOption,
+            outputModeOption,
+            pageSizeOption,
+            pageOffsetOption,
+            handleResultsOption,
+            handleOption,
+            defNameOption,
+            typeOption,
+            searchTermOption,
+            inTypeOption,
+            maxResultsOption,
+            modPackageIdOption,
+            conflictTypeOption,
+            severityOption,
+            includeInactiveOption,
+            xpathOption,
+            defName1Option,
+            defName2Option,
+            modPackageId1Option,
+            modPackageId2Option,
+            similarityThresholdOption,
+            languageOption,
+            assetTypeOption,
+            severityLevelOption,
+            formatOption,
+            maxDefinitionsOption,
+            focusStatOption,
+            directionOption,
+            maxDepthOption,
+            targetResearchOption,
+            includeAllPathsOption,
+            biomeDefNameOption,
+            contentTypeOption,
+            targetDefNameOption,
+            includeComfortOption,
+            logPathOption,
+            otherLogPathOption,
+            allowedDlcsOption,
+            scopeTypeOption,
+            scopeValueOption,
+            referenceOption,
+            baseRefOption,
+            pathsOption,
+            moveBeforeModPackageIdOption,
+            moveAfterModPackageIdOption
+        };
 
-            List<string> modDirsList = [];
-            foreach (var dirs in modDirs)
+        foreach (var option in options)
+        {
+            rootCommand.AddOption(option);
+        }
+
+        rootCommand.SetHandler(async context =>
+        {
+            var parseResult = context.ParseResult;
+
+            ProjectContext projectContext;
+            try
             {
-                modDirsList.AddRange(dirs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                projectContext = BuildProjectContext(
+                    parseResult,
+                    configOption,
+                    projectRootOption,
+                    rimworldPathOption,
+                    modDirsOption,
+                    modsConfigPathOption,
+                    logPathOption,
+                    allowedDlcsOption,
+                    outputModeOption,
+                    pageSizeOption,
+                    pageOffsetOption,
+                    handleResultsOption,
+                    rimworldVersionOption,
+                    modConcurrencyOption,
+                    modBatchSizeOption,
+                    logLevelOption);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                context.ExitCode = 1;
+                return;
             }
 
-            // Check if tool mode is requested
-            if (!string.IsNullOrEmpty(tool))
+            var toolName = parseResult.GetValueForOption(toolOption);
+            var toolExecutionOptions = new ToolExecutionOptions
             {
-                var toolArgs = new Dictionary<string, object?>();
-                
-                // Extract tool arguments based on tool type
-                switch (tool)
+                OutputMode = ToolOutputFormatter.ParseMode(projectContext.OutputMode),
+                PageSize = projectContext.PageSize,
+                PageOffset = projectContext.PageOffset,
+                HandleResults = projectContext.HandleResults
+            };
+
+            if (string.IsNullOrWhiteSpace(toolName))
+            {
+                if (string.IsNullOrWhiteSpace(projectContext.RimworldPath))
                 {
-                    case "get_def":
-                        toolArgs["defName"] = context.ParseResult.GetValueForOption(defNameOption);
-                        break;
-                    case "get_defs_by_type":
-                        toolArgs["type"] = context.ParseResult.GetValueForOption(typeOption);
-                        break;
-                    case "search_defs":
-                        toolArgs["searchTerm"] = context.ParseResult.GetValueForOption(searchTermOption);
-                        toolArgs["inType"] = context.ParseResult.GetValueForOption(inTypeOption);
-                        toolArgs["maxResults"] = context.ParseResult.GetValueForOption(maxResultsOption);
-                        break;
-                    case "get_conflicts":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["conflictType"] = context.ParseResult.GetValueForOption(conflictTypeOption);
-                        toolArgs["severity"] = context.ParseResult.GetValueForOption(severityOption);
-                        break;
-                    case "calculate_market_value":
-                        toolArgs["defName"] = context.ParseResult.GetValueForOption(defNameOption);
-                        break;
-                    case "get_references":
-                        toolArgs["defName"] = context.ParseResult.GetValueForOption(defNameOption);
-                        toolArgs["includeInactive"] = context.ParseResult.GetValueForOption(includeInactiveOption);
-                        break;
-                    case "get_def_dependencies":
-                        toolArgs["defName"] = context.ParseResult.GetValueForOption(defNameOption);
-                        break;
-                    case "validate_def":
-                        toolArgs["defName"] = context.ParseResult.GetValueForOption(defNameOption);
-                        break;
-                    case "validate_xpath":
-                        toolArgs["xpath"] = context.ParseResult.GetValueForOption(xpathOption);
-                        toolArgs["defName"] = context.ParseResult.GetValueForOption(defNameOption);
-                        break;
-                    case "get_def_inheritance_tree":
-                    case "get_patches_for_def":
-                        toolArgs["defName"] = context.ParseResult.GetValueForOption(defNameOption);
-                        break;
-                    case "compare_defs":
-                        toolArgs["defName1"] = context.ParseResult.GetValueForOption(defName1Option);
-                        toolArgs["defName2"] = context.ParseResult.GetValueForOption(defName2Option);
-                        break;
-                    case "get_abstract_defs":
-                        toolArgs["type"] = context.ParseResult.GetValueForOption(typeOption);
-                        break;
-                    case "analyze_mod_compatibility":
-                        toolArgs["modPackageId1"] = context.ParseResult.GetValueForOption(modPackageId1Option);
-                        toolArgs["modPackageId2"] = context.ParseResult.GetValueForOption(modPackageId2Option);
-                        break;
-                    case "get_mod_dependencies":
-                    case "validate_mod_structure":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        break;
-                    case "find_broken_references":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        break;
-                    case "find_duplicate_content":
-                        toolArgs["defType"] = context.ParseResult.GetValueForOption(typeOption);
-                        toolArgs["similarityThreshold"] = context.ParseResult.GetValueForOption(similarityThresholdOption);
-                        break;
-                    case "suggest_optimizations":
-                    case "analyze_texture_usage":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        break;
-                    case "validate_localization":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["language"] = context.ParseResult.GetValueForOption(languageOption);
-                        break;
-                    case "find_unused_assets":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["assetType"] = context.ParseResult.GetValueForOption(assetTypeOption);
-                        break;
-                    case "lint_xml":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["severityLevel"] = context.ParseResult.GetValueForOption(severityLevelOption);
-                        break;
-                    case "generate_documentation":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["format"] = context.ParseResult.GetValueForOption(formatOption);
-                        break;
-                    case "create_compatibility_report":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        break;
-                    case "export_definitions":
-                        toolArgs["format"] = context.ParseResult.GetValueForOption(formatOption);
-                        toolArgs["defType"] = context.ParseResult.GetValueForOption(typeOption);
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["maxDefinitions"] = context.ParseResult.GetValueForOption(maxDefinitionsOption);
-                        break;
-                    case "analyze_balance":
-                        toolArgs["defType"] = context.ParseResult.GetValueForOption(typeOption);
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["focusStat"] = context.ParseResult.GetValueForOption(focusStatOption);
-                        break;
-                    case "get_recipe_chains":
-                        toolArgs["targetDefName"] = context.ParseResult.GetValueForOption(targetDefNameOption);
-                        toolArgs["direction"] = context.ParseResult.GetValueForOption(directionOption);
-                        toolArgs["maxDepth"] = context.ParseResult.GetValueForOption(maxDepthOption);
-                        break;
-                    case "find_research_paths":
-                        toolArgs["targetResearch"] = context.ParseResult.GetValueForOption(targetResearchOption);
-                        toolArgs["includeAllPaths"] = context.ParseResult.GetValueForOption(includeAllPathsOption);
-                        break;
-                    case "get_biome_compatibility":
-                        toolArgs["biomeDefName"] = context.ParseResult.GetValueForOption(biomeDefNameOption);
-                        toolArgs["contentType"] = context.ParseResult.GetValueForOption(contentTypeOption);
-                        break;
-                    case "calculate_room_requirements":
-                        toolArgs["targetDefName"] = context.ParseResult.GetValueForOption(targetDefNameOption);
-                        toolArgs["includeComfort"] = context.ParseResult.GetValueForOption(includeComfortOption);
-                        break;
-                    case "get_mod_list":
-                    case "get_statistics":
-                        // No additional arguments needed
-                        break;
-                    case "triage_player_log":
-                        toolArgs["logPath"] = context.ParseResult.GetValueForOption(logPathOption);
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["maxGroups"] = context.ParseResult.GetValueForOption(maxResultsOption);
-                        break;
-                    case "validate_def_against_runtime":
-                        toolArgs["defName"] = context.ParseResult.GetValueForOption(defNameOption);
-                        break;
-                    case "scan_dlc_dependencies":
-                        toolArgs["allowedDlcs"] = context.ParseResult.GetValueForOption(allowedDlcsOption);
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["maxFindingsPerMod"] = context.ParseResult.GetValueForOption(maxResultsOption);
-                        break;
-                    case "audit_scope":
-                        toolArgs["scopeType"] = context.ParseResult.GetValueForOption(scopeTypeOption);
-                        toolArgs["scopeValue"] = context.ParseResult.GetValueForOption(scopeValueOption);
-                        toolArgs["severity"] = context.ParseResult.GetValueForOption(severityOption);
-                        toolArgs["maxFindings"] = context.ParseResult.GetValueForOption(maxResultsOption);
-                        break;
-                    case "triage_patch_conflicts":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["severity"] = context.ParseResult.GetValueForOption(severityOption);
-                        toolArgs["maxResults"] = context.ParseResult.GetValueForOption(maxResultsOption);
-                        break;
-                    case "content_coverage_report":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["defType"] = context.ParseResult.GetValueForOption(typeOption);
-                        toolArgs["maxExamples"] = context.ParseResult.GetValueForOption(maxResultsOption);
-                        break;
-                    case "mod_ready_check":
-                        toolArgs["modPackageId"] = context.ParseResult.GetValueForOption(modPackageIdOption);
-                        toolArgs["allowedDlcs"] = context.ParseResult.GetValueForOption(allowedDlcsOption);
-                        toolArgs["logPath"] = context.ParseResult.GetValueForOption(logPathOption);
-                        toolArgs["maxIssues"] = context.ParseResult.GetValueForOption(maxResultsOption);
-                        break;
+                    Console.Error.WriteLine("Missing RimWorld path. Provide --rimworld-path or set rimworldPath in .rimworld-modder-mcp.json.");
+                    context.ExitCode = 1;
+                    return;
                 }
 
-                await RunToolAsync(rimworldPath, modDirsList, modsConfigPath, tool, toolArgs, modConcurrency, 
-                    modBatchSize, logLevel, rimworldVersion);
+                await RunServerAsync(
+                    projectContext,
+                    parseResult.GetValueForOption(serverNameOption)!,
+                    parseResult.GetValueForOption(serverVersionOption)!);
+                return;
             }
-            else
+
+            if (ToolRequiresLoadedData(toolName) && string.IsNullOrWhiteSpace(projectContext.RimworldPath))
             {
-                await RunServerAsync(rimworldPath, modDirsList, serverName, serverVersion, 
-                    modConcurrency, modBatchSize, logLevel, rimworldVersion);
+                Console.Error.WriteLine($"Tool '{toolName}' requires RimWorld data. Provide --rimworld-path or set rimworldPath in .rimworld-modder-mcp.json.");
+                context.ExitCode = 1;
+                return;
             }
+
+            var toolArgs = BuildToolArguments(
+                toolName,
+                parseResult,
+                handleOption,
+                defNameOption,
+                typeOption,
+                searchTermOption,
+                inTypeOption,
+                maxResultsOption,
+                modPackageIdOption,
+                conflictTypeOption,
+                severityOption,
+                includeInactiveOption,
+                xpathOption,
+                defName1Option,
+                defName2Option,
+                modPackageId1Option,
+                modPackageId2Option,
+                similarityThresholdOption,
+                languageOption,
+                assetTypeOption,
+                severityLevelOption,
+                formatOption,
+                maxDefinitionsOption,
+                focusStatOption,
+                directionOption,
+                maxDepthOption,
+                targetResearchOption,
+                includeAllPathsOption,
+                biomeDefNameOption,
+                contentTypeOption,
+                targetDefNameOption,
+                includeComfortOption,
+                logPathOption,
+                otherLogPathOption,
+                allowedDlcsOption,
+                scopeTypeOption,
+                scopeValueOption,
+                referenceOption,
+                baseRefOption,
+                pathsOption,
+                moveBeforeModPackageIdOption,
+                moveAfterModPackageIdOption,
+                genericParamOption);
+
+            await RunToolAsync(projectContext, toolName, toolArgs, toolExecutionOptions);
         });
 
         return await rootCommand.InvokeAsync(args);
     }
 
-    static string GetDefaultServerVersion()
+    private static ProjectContext BuildProjectContext(
+        ParseResult parseResult,
+        Option<string> configOption,
+        Option<string> projectRootOption,
+        Option<string> rimworldPathOption,
+        Option<string[]> modDirsOption,
+        Option<string> modsConfigPathOption,
+        Option<string> logPathOption,
+        Option<string> allowedDlcsOption,
+        Option<string> outputModeOption,
+        Option<int> pageSizeOption,
+        Option<int> pageOffsetOption,
+        Option<bool> handleResultsOption,
+        Option<string> rimworldVersionOption,
+        Option<int> modConcurrencyOption,
+        Option<int> modBatchSizeOption,
+        Option<string> logLevelOption)
     {
-        var informationalVersion = typeof(Program).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion;
+        var explicitConfigPath = parseResult.GetValueForOption(configOption);
+        var explicitProjectRoot = parseResult.GetValueForOption(projectRootOption);
+        var (config, configPath) = ProjectConfigLoader.Load(explicitConfigPath, explicitProjectRoot);
 
-        return informationalVersion?.Split('+')[0] ?? "0.0.0-local";
+        var discoveryRoot = !string.IsNullOrWhiteSpace(explicitProjectRoot)
+            ? Path.GetFullPath(explicitProjectRoot)
+            : Directory.GetCurrentDirectory();
+
+        var configBaseDirectory = configPath != null
+            ? Path.GetDirectoryName(configPath)!
+            : discoveryRoot;
+
+        var projectRoot = ResolveProjectRoot(
+            parseResult,
+            projectRootOption,
+            config?.ProjectRoot,
+            configBaseDirectory,
+            discoveryRoot);
+
+        var cliModDirs = SplitOptionValues(parseResult.GetValueForOption(modDirsOption));
+
+        return new ProjectContext
+        {
+            ConfigPath = configPath,
+            ProjectRoot = projectRoot,
+            RimworldPath = ResolveOptionalPath(
+                WasOptionProvided(parseResult, rimworldPathOption)
+                    ? parseResult.GetValueForOption(rimworldPathOption)
+                    : config?.RimworldPath,
+                projectRoot),
+            ModDirs = cliModDirs.Count > 0
+                ? ProjectConfigLoader.ResolvePaths(cliModDirs, projectRoot)
+                : ProjectConfigLoader.ResolvePaths(config?.ModDirs, projectRoot),
+            ModsConfigPath = ResolveOptionalPath(
+                WasOptionProvided(parseResult, modsConfigPathOption)
+                    ? parseResult.GetValueForOption(modsConfigPathOption)
+                    : config?.ModsConfigPath,
+                projectRoot),
+            LogPath = ResolveOptionalPath(
+                WasOptionProvided(parseResult, logPathOption)
+                    ? parseResult.GetValueForOption(logPathOption)
+                    : config?.LogPath,
+                projectRoot),
+            AllowedDlcs = WasOptionProvided(parseResult, allowedDlcsOption)
+                ? parseResult.GetValueForOption(allowedDlcsOption)!
+                : config?.AllowedDlcs ?? "Core,Biotech",
+            OutputMode = WasOptionProvided(parseResult, outputModeOption)
+                ? parseResult.GetValueForOption(outputModeOption)!
+                : config?.OutputMode ?? "normal",
+            PageSize = WasOptionProvided(parseResult, pageSizeOption)
+                ? parseResult.GetValueForOption(pageSizeOption)
+                : config?.PageSize ?? 25,
+            PageOffset = WasOptionProvided(parseResult, pageOffsetOption)
+                ? parseResult.GetValueForOption(pageOffsetOption)
+                : config?.PageOffset ?? 0,
+            HandleResults = WasOptionProvided(parseResult, handleResultsOption)
+                ? parseResult.GetValueForOption(handleResultsOption)
+                : config?.HandleResults ?? false,
+            RimworldVersion = WasOptionProvided(parseResult, rimworldVersionOption)
+                ? parseResult.GetValueForOption(rimworldVersionOption)!
+                : config?.RimworldVersion ?? "1.6",
+            ModConcurrency = WasOptionProvided(parseResult, modConcurrencyOption)
+                ? parseResult.GetValueForOption(modConcurrencyOption)
+                : config?.ModConcurrency ?? Math.Max(1, Environment.ProcessorCount / 4),
+            ModBatchSize = WasOptionProvided(parseResult, modBatchSizeOption)
+                ? parseResult.GetValueForOption(modBatchSizeOption)
+                : config?.ModBatchSize ?? Math.Max(4, Environment.ProcessorCount / 2),
+            LogLevel = WasOptionProvided(parseResult, logLevelOption)
+                ? parseResult.GetValueForOption(logLevelOption)!
+                : config?.LogLevel ?? "Information"
+        };
     }
 
-    static async Task RunServerAsync(
-        string rimworldPath,
-        List<string> modDirs,
-        string serverName,
-        string serverVersion,
-        int modConcurrency,
-        int modBatchSize,
-        string logLevel,
-        string rimworldVersion)
+    private static string ResolveProjectRoot(
+        ParseResult parseResult,
+        Option<string> projectRootOption,
+        string? configuredProjectRoot,
+        string configBaseDirectory,
+        string discoveryRoot)
     {
-        var level = Enum.Parse<LogLevel>(logLevel, true);
-
-        var builder = Host.CreateEmptyApplicationBuilder(settings: null);
-
-        // Configure logging to stderr to avoid polluting MCP stdout
-        builder.Logging.ClearProviders();
-        builder.Logging.AddConsole(options =>
+        if (WasOptionProvided(parseResult, projectRootOption))
         {
-            options.LogToStandardErrorThreshold = LogLevel.Trace; // All logs go to stderr
-        });
-        builder.Logging.SetMinimumLevel(level); // Use the configured log level
+            return Path.GetFullPath(parseResult.GetValueForOption(projectRootOption)!);
+        }
 
-        builder.Services.AddSingleton(new ServerData());
-        builder.Services.AddSingleton(sp => new ModLoader(
-            rimworldPath,
-            modBatchSize,
-            modDirs,
-            sp.GetRequiredService<ILogger<ModLoader>>()));
-        builder.Services.AddSingleton<DefParser>();
-        builder.Services.AddSingleton<ConflictDetector>();
+        if (!string.IsNullOrWhiteSpace(configuredProjectRoot))
+        {
+            return ProjectConfigLoader.ResolvePath(configuredProjectRoot, configBaseDirectory);
+        }
+
+        return discoveryRoot;
+    }
+
+    private static Dictionary<string, object?> BuildToolArguments(
+        string toolName,
+        ParseResult parseResult,
+        Option<string> handleOption,
+        Option<string> defNameOption,
+        Option<string> typeOption,
+        Option<string> searchTermOption,
+        Option<string> inTypeOption,
+        Option<int> maxResultsOption,
+        Option<string> modPackageIdOption,
+        Option<string> conflictTypeOption,
+        Option<string> severityOption,
+        Option<bool> includeInactiveOption,
+        Option<string> xpathOption,
+        Option<string> defName1Option,
+        Option<string> defName2Option,
+        Option<string> modPackageId1Option,
+        Option<string> modPackageId2Option,
+        Option<double> similarityThresholdOption,
+        Option<string> languageOption,
+        Option<string> assetTypeOption,
+        Option<string> severityLevelOption,
+        Option<string> formatOption,
+        Option<int> maxDefinitionsOption,
+        Option<string> focusStatOption,
+        Option<string> directionOption,
+        Option<int> maxDepthOption,
+        Option<string> targetResearchOption,
+        Option<bool> includeAllPathsOption,
+        Option<string> biomeDefNameOption,
+        Option<string> contentTypeOption,
+        Option<string> targetDefNameOption,
+        Option<bool> includeComfortOption,
+        Option<string> logPathOption,
+        Option<string> otherLogPathOption,
+        Option<string> allowedDlcsOption,
+        Option<string> scopeTypeOption,
+        Option<string> scopeValueOption,
+        Option<string> referenceOption,
+        Option<string> baseRefOption,
+        Option<string[]> pathsOption,
+        Option<string> moveBeforeModPackageIdOption,
+        Option<string> moveAfterModPackageIdOption,
+        Option<string[]> genericParamOption)
+    {
+        var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        AddIfProvided(arguments, parseResult, handleOption, "handle");
+        AddIfProvided(arguments, parseResult, defNameOption, "defName");
+        AddIfProvided(arguments, parseResult, typeOption, "type");
+        AddIfProvided(arguments, parseResult, searchTermOption, "searchTerm");
+        AddIfProvided(arguments, parseResult, inTypeOption, "inType");
+        AddIfProvided(arguments, parseResult, maxResultsOption, "maxResults");
+        AddIfProvided(arguments, parseResult, modPackageIdOption, "modPackageId");
+        AddIfProvided(arguments, parseResult, conflictTypeOption, "conflictType");
+        AddIfProvided(arguments, parseResult, severityOption, "severity");
+        AddIfProvided(arguments, parseResult, includeInactiveOption, "includeInactive");
+        AddIfProvided(arguments, parseResult, xpathOption, "xpath");
+        AddIfProvided(arguments, parseResult, defName1Option, "defName1");
+        AddIfProvided(arguments, parseResult, defName2Option, "defName2");
+        AddIfProvided(arguments, parseResult, modPackageId1Option, "modPackageId1");
+        AddIfProvided(arguments, parseResult, modPackageId2Option, "modPackageId2");
+        AddIfProvided(arguments, parseResult, similarityThresholdOption, "similarityThreshold");
+        AddIfProvided(arguments, parseResult, languageOption, "language");
+        AddIfProvided(arguments, parseResult, assetTypeOption, "assetType");
+        AddIfProvided(arguments, parseResult, severityLevelOption, "severityLevel");
+        AddIfProvided(arguments, parseResult, formatOption, "format");
+        AddIfProvided(arguments, parseResult, maxDefinitionsOption, "maxDefinitions");
+        AddIfProvided(arguments, parseResult, focusStatOption, "focusStat");
+        AddIfProvided(arguments, parseResult, directionOption, "direction");
+        AddIfProvided(arguments, parseResult, maxDepthOption, "maxDepth");
+        AddIfProvided(arguments, parseResult, targetResearchOption, "targetResearch");
+        AddIfProvided(arguments, parseResult, includeAllPathsOption, "includeAllPaths");
+        AddIfProvided(arguments, parseResult, biomeDefNameOption, "biomeDefName");
+        AddIfProvided(arguments, parseResult, contentTypeOption, "contentType");
+        AddIfProvided(arguments, parseResult, targetDefNameOption, "targetDefName");
+        AddIfProvided(arguments, parseResult, includeComfortOption, "includeComfort");
+        AddIfProvided(arguments, parseResult, logPathOption, "logPath");
+        AddIfProvided(arguments, parseResult, otherLogPathOption, "otherLogPath");
+        AddIfProvided(arguments, parseResult, allowedDlcsOption, "allowedDlcs");
+        AddIfProvided(arguments, parseResult, scopeTypeOption, "scopeType");
+        AddIfProvided(arguments, parseResult, scopeValueOption, "scopeValue");
+        AddIfProvided(arguments, parseResult, referenceOption, "reference");
+        AddIfProvided(arguments, parseResult, baseRefOption, "baseRef");
+        AddIfProvided(arguments, parseResult, moveBeforeModPackageIdOption, "moveBeforeModPackageId");
+        AddIfProvided(arguments, parseResult, moveAfterModPackageIdOption, "moveAfterModPackageId");
+
+        if (WasOptionProvided(parseResult, pathsOption))
+        {
+            var paths = SplitOptionValues(parseResult.GetValueForOption(pathsOption));
+            if (paths.Count > 0)
+            {
+                arguments["paths"] = paths.ToArray();
+            }
+        }
+
+        if (WasOptionProvided(parseResult, genericParamOption))
+        {
+            foreach (var entry in parseResult.GetValueForOption(genericParamOption) ?? Array.Empty<string>())
+            {
+                if (string.IsNullOrWhiteSpace(entry))
+                {
+                    continue;
+                }
+
+                var separatorIndex = entry.IndexOf('=');
+                if (separatorIndex <= 0 || separatorIndex == entry.Length - 1)
+                {
+                    throw new ArgumentException($"Invalid --param value '{entry}'. Use key=value.");
+                }
+
+                var key = entry[..separatorIndex].Trim();
+                var value = entry[(separatorIndex + 1)..].Trim();
+
+                if (arguments.TryGetValue(key, out var existing))
+                {
+                    if (existing is string[] array)
+                    {
+                        arguments[key] = array.Concat([value]).ToArray();
+                    }
+                    else if (existing is string stringValue)
+                    {
+                        arguments[key] = new[] { stringValue, value };
+                    }
+                    else
+                    {
+                        arguments[key] = value;
+                    }
+                }
+                else
+                {
+                    arguments[key] = value;
+                }
+            }
+        }
+
+        switch (toolName.Trim().ToLowerInvariant())
+        {
+            case "find_duplicate_content":
+            case "content_coverage_report":
+                Alias(arguments, "type", "defType");
+                break;
+
+            case "triage_player_log":
+            case "compare_player_logs":
+            case "find_patch_hotspots":
+                Alias(arguments, "maxResults", "maxGroups");
+                break;
+
+            case "scan_dlc_dependencies":
+                Alias(arguments, "maxResults", "maxFindingsPerMod");
+                break;
+
+            case "audit_scope":
+                Alias(arguments, "maxResults", "maxFindings");
+                break;
+
+            case "triage_patch_conflicts":
+                Alias(arguments, "maxResults", "maxResults");
+                break;
+
+            case "mod_ready_check":
+                Alias(arguments, "maxResults", "maxIssues");
+                break;
+
+            case "doctor":
+            case "audit_changed_files":
+            case "validate_changed_content":
+            case "scope_search":
+            case "load_order_impact_report":
+                Alias(arguments, "maxResults", "maxResults");
+                break;
+        }
+
+        return arguments;
+    }
+
+    private static void Alias(Dictionary<string, object?> arguments, string from, string to)
+    {
+        if (!arguments.ContainsKey(to) && arguments.TryGetValue(from, out var value))
+        {
+            arguments[to] = value;
+        }
+    }
+
+    private static async Task RunServerAsync(ProjectContext projectContext, string serverName, string serverVersion)
+    {
+        var builder = CreateApplicationBuilder(projectContext);
+        ConfigureCommonServices(builder.Services, projectContext);
         builder.Services.AddSingleton(sp => new FileWatcherService(
             sp.GetRequiredService<ILogger<FileWatcherService>>(),
             sp.GetRequiredService<ServerData>(),
@@ -500,49 +753,44 @@ class Program
 
         var host = builder.Build();
 
-        var logger = host.Services.GetRequiredService<ILogger<Program>>();
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Program");
         var serverData = host.Services.GetRequiredService<ServerData>();
         var modLoader = host.Services.GetRequiredService<ModLoader>();
         var defParser = host.Services.GetRequiredService<DefParser>();
         var conflictDetector = host.Services.GetRequiredService<ConflictDetector>();
         var fileWatcher = host.Services.GetRequiredService<FileWatcherService>();
-        
-        // Get MCP server to notify when initialization is complete
-        var mcpServer = host.Services.GetServices<IHostedService>()
-            .OfType<McpServer>()
-            .FirstOrDefault();
+        var mcpServer = host.Services.GetServices<IHostedService>().OfType<McpServer>().FirstOrDefault();
 
         try
         {
-            logger.LogInformation("{'=', 60}", new string('=', 60));
-            logger.LogInformation("{ServerName} v{ServerVersion}", serverName.ToUpper(), serverVersion);
-            logger.LogInformation("{'=', 60}", new string('=', 60));
+            logger.LogInformation("{Separator}", new string('=', 60));
+            logger.LogInformation("{ServerName} v{ServerVersion}", serverName.ToUpperInvariant(), serverVersion);
+            logger.LogInformation("{Separator}", new string('=', 60));
+            logger.LogInformation("Project root: {ProjectRoot}", projectContext.ProjectRoot);
 
-            logger.LogInformation("🚀 Starting MCP server (loading data in background)...");
-            logger.LogInformation("🎯 Starting MCP protocol handler...");
-            
-            // Start background loading immediately without delay
             var backgroundTask = Task.Run(async () =>
             {
                 logger.LogInformation("🔄 Background loading started...");
-                logger.LogInformation("💡 MCP Server will handle client connections while this loads...");
                 await RunBackgroundLoadingAsync(
-                    logger, modLoader, defParser, serverData, conflictDetector, 
-                    fileWatcher, rimworldPath, modDirs, rimworldVersion, modConcurrency);
-                
-                // Notify MCP server that initialization is complete
+                    logger,
+                    modLoader,
+                    defParser,
+                    serverData,
+                    conflictDetector,
+                    fileWatcher,
+                    projectContext.RimworldPath!,
+                    projectContext.ModDirs,
+                    projectContext.RimworldVersion,
+                    projectContext.ModConcurrency);
+
                 mcpServer?.NotifyInitializationComplete();
             });
-            
-            // Run the host - this should block until stdin closes or process is terminated
+
             logger.LogInformation("🔌 MCP server ready for connections...");
             await host.RunAsync();
-            
-            // Wait for background task to complete after host shuts down
+
             logger.LogInformation("⏳ Waiting for background loading to complete...");
             await backgroundTask;
-            
-            logger.LogInformation("🔚 MCP server has shut down");
         }
         catch (Exception ex)
         {
@@ -551,8 +799,69 @@ class Program
         }
     }
 
+    private static async Task RunToolAsync(
+        ProjectContext projectContext,
+        string toolName,
+        Dictionary<string, object?> toolArgs,
+        ToolExecutionOptions options)
+    {
+        var builder = CreateApplicationBuilder(projectContext);
+        ConfigureCommonServices(builder.Services, projectContext);
+        var host = builder.Build();
+
+        var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Program");
+        var serverData = host.Services.GetRequiredService<ServerData>();
+        var modLoader = host.Services.GetRequiredService<ModLoader>();
+        var defParser = host.Services.GetRequiredService<DefParser>();
+        var conflictDetector = host.Services.GetRequiredService<ConflictDetector>();
+        var toolExecutor = host.Services.GetRequiredService<ToolExecutor>();
+
+        try
+        {
+            if (ToolRequiresLoadedData(toolName))
+            {
+                await LoadModsAndDefsAsync(logger, modLoader, defParser, serverData, projectContext.ModConcurrency, projectContext.RimworldVersion);
+                conflictDetector.DetectAllConflicts(serverData);
+                serverData.IsConflictsAnalyzed = true;
+            }
+
+            var execution = toolExecutor.Execute(toolName, toolArgs, options);
+            Console.WriteLine(execution.Text);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { error = ex.Message }));
+            Environment.Exit(1);
+        }
+    }
+
+    private static HostApplicationBuilder CreateApplicationBuilder(ProjectContext projectContext)
+    {
+        var level = Enum.Parse<LogLevel>(projectContext.LogLevel, true);
+        var builder = Host.CreateEmptyApplicationBuilder(settings: null);
+        builder.Logging.ClearProviders();
+        builder.Logging.AddConsole(options => { options.LogToStandardErrorThreshold = LogLevel.Trace; });
+        builder.Logging.SetMinimumLevel(level);
+        return builder;
+    }
+
+    private static void ConfigureCommonServices(IServiceCollection services, ProjectContext projectContext)
+    {
+        services.AddSingleton(projectContext);
+        services.AddSingleton(new ServerData());
+        services.AddSingleton<ResultHandleStore>();
+        services.AddSingleton(sp => new ModLoader(
+            projectContext.RimworldPath ?? string.Empty,
+            projectContext.ModBatchSize,
+            projectContext.ModDirs,
+            sp.GetRequiredService<ILogger<ModLoader>>()));
+        services.AddSingleton<DefParser>();
+        services.AddSingleton<ConflictDetector>();
+        services.AddSingleton<ToolExecutor>();
+    }
+
     private static async Task LoadModsAndDefsAsync(
-        ILogger<Program> logger,
+        ILogger logger,
         ModLoader modLoader,
         DefParser defParser,
         ServerData serverData,
@@ -561,20 +870,18 @@ class Program
     {
         logger.LogInformation("📁 Loading mods and scanning defs...");
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        
-        // Load mods first (core and DLCs need to be loaded before mods for load order)
+
         var modLoadingSw = System.Diagnostics.Stopwatch.StartNew();
         await modLoader.LoadModsAsync(serverData);
         serverData.IsModsLoaded = true;
         modLoadingSw.Stop();
-        
+
         logger.LogInformation("📄 Scanning defs for {ModCount} mods...", serverData.Mods.Count);
         logger.LogInformation("   ⏱️  Mod loading took: {Duration:F2}s", modLoadingSw.Elapsed.TotalSeconds);
-        
-        // Now scan defs for all mods in parallel
+
         var defScanningSw = System.Diagnostics.Stopwatch.StartNew();
-        using SemaphoreSlim semaphore = new(modConcurrency);
-        List<Task> defScanTasks = serverData.Mods.Values.Select(async mod =>
+        using var semaphore = new SemaphoreSlim(modConcurrency);
+        var defScanTasks = serverData.Mods.Values.Select(async mod =>
         {
             await semaphore.WaitAsync();
             try
@@ -586,18 +893,18 @@ class Program
                 semaphore.Release();
             }
         }).ToList();
-        
+
         await Task.WhenAll(defScanTasks);
         serverData.IsDefsLoaded = true;
         defScanningSw.Stop();
         sw.Stop();
-        
+
         logger.LogInformation("   ⏱️  Def scanning took: {Duration:F2}s", defScanningSw.Elapsed.TotalSeconds);
         logger.LogInformation("   ✓ Completed mod loading + def scanning in {Duration:F2}s", sw.Elapsed.TotalSeconds);
     }
 
     private static async Task RunBackgroundLoadingAsync(
-        ILogger<Program> logger,
+        ILogger logger,
         ModLoader modLoader,
         DefParser defParser,
         ServerData serverData,
@@ -610,32 +917,32 @@ class Program
     {
         try
         {
-            logger.LogInformation("⚙️  CPU Cores: {CpuCores}, Concurrency: Mod={ModConcurrency}, XML={XmlBatch}, ModLoad={ModBatch}", 
-                Environment.ProcessorCount, modConcurrency, 16, 16);
-            System.Diagnostics.Stopwatch totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
-            
-            System.Diagnostics.Stopwatch modLoadingStopwatch = System.Diagnostics.Stopwatch.StartNew();
+            logger.LogInformation(
+                "⚙️  CPU Cores: {CpuCores}, Concurrency: Mod={ModConcurrency}, XML={XmlBatch}, ModLoad={ModBatch}",
+                Environment.ProcessorCount,
+                modConcurrency,
+                16,
+                16);
+
+            var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var modLoadingStopwatch = System.Diagnostics.Stopwatch.StartNew();
             await LoadModsAndDefsAsync(logger, modLoader, defParser, serverData, modConcurrency, rimworldVersion);
             modLoadingStopwatch.Stop();
-            
-            // Run conflict detection after loading completes
+
             logger.LogInformation("🔍 Analyzing mod conflicts...");
-            System.Diagnostics.Stopwatch conflictStopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var conflictStopwatch = System.Diagnostics.Stopwatch.StartNew();
             conflictDetector.DetectAllConflicts(serverData);
             serverData.IsConflictsAnalyzed = true;
             conflictStopwatch.Stop();
-            
+
             totalStopwatch.Stop();
-            
+
             logger.LogInformation("   ✓ Loaded {ModCount} mods", serverData.Mods.Count);
             logger.LogInformation("   ✓ Found {DefCount} defs", serverData.Defs.Count);
-
-            // Performance timing logs
             logger.LogInformation("⏱️  Performance Timings:");
             logger.LogInformation("   • Mod loading + def scanning: {Duration:F2}s", modLoadingStopwatch.Elapsed.TotalSeconds);
             logger.LogInformation("   • Conflict detection: {Duration:F2}s", conflictStopwatch.Elapsed.TotalSeconds);
             logger.LogInformation("   • Total loading: {Duration:F2}s", totalStopwatch.Elapsed.TotalSeconds);
-
             logger.LogInformation("{Separator}", new string('=', 60));
             logger.LogInformation("Background Loading Complete:");
             logger.LogInformation("  • Mods: {ModCount}", serverData.Mods.Count);
@@ -646,7 +953,6 @@ class Program
 
             logger.LogInformation("👀 Starting file system watchers...");
             fileWatcher.StartWatching(rimworldPath, modDirs);
-            
             logger.LogInformation("🎉 All data loading complete! Server fully operational.");
         }
         catch (Exception ex)
@@ -655,166 +961,103 @@ class Program
         }
     }
 
-    static async Task RunToolAsync(
-        string rimworldPath,
-        List<string> modDirs,
-        string? modsConfigPath,
-        string toolName,
-        Dictionary<string, object?> toolArgs,
-        int modConcurrency,
-        int modBatchSize,
-        string logLevel,
-        string rimworldVersion)
+    private static bool ToolRequiresLoadedData(string toolName) =>
+        toolName.Trim().ToLowerInvariant() switch
+        {
+            "doctor" => false,
+            "triage_player_log" => false,
+            "compare_player_logs" => false,
+            "get_result_by_handle" => false,
+            _ => true
+        };
+
+    private static void AddIfProvided(
+        Dictionary<string, object?> arguments,
+        ParseResult parseResult,
+        Option<string> option,
+        string parameterName)
     {
-        var level = Enum.Parse<LogLevel>(logLevel, true);
-
-        var builder = Host.CreateEmptyApplicationBuilder(settings: null);
-        builder.Services.AddSingleton(new ServerData());
-        builder.Services.AddSingleton(sp => new ModLoader(
-            rimworldPath,
-            modBatchSize,
-            modDirs,
-            sp.GetRequiredService<ILogger<ModLoader>>()));
-        builder.Services.AddSingleton<DefParser>();
-        builder.Services.AddSingleton<ConflictDetector>();
-
-        var host = builder.Build();
-
-        var logger = host.Services.GetRequiredService<ILogger<Program>>();
-        var serverData = host.Services.GetRequiredService<ServerData>();
-        var modLoader = host.Services.GetRequiredService<ModLoader>();
-        var defParser = host.Services.GetRequiredService<DefParser>();
-        var conflictDetector = host.Services.GetRequiredService<ConflictDetector>();
-
-        try
+        if (!WasOptionProvided(parseResult, option))
         {
-            // Load data silently
-            await LoadModsAndDefsAsync(logger, modLoader, defParser, serverData, modConcurrency, rimworldVersion);
-
-            conflictDetector.DetectAllConflicts(serverData);
-            serverData.IsConflictsAnalyzed = true;
-
-            // Execute the tool
-            string result = toolName switch
-            {
-                "get_def" => DefinitionTools.GetDef(serverData, (string)toolArgs["defName"]!),
-                "get_defs_by_type" => DefinitionTools.GetDefsByType(serverData, (string)toolArgs["type"]!),
-                "search_defs" => DefinitionTools.SearchDefs(serverData, 
-                    (string)toolArgs["searchTerm"]!, 
-                    (string?)toolArgs.GetValueOrDefault("inType"), 
-                    (int?)toolArgs.GetValueOrDefault("maxResults") ?? 100),
-                "get_mod_list" => ModTools.GetModList(serverData),
-                "get_statistics" => StatisticsTools.GetStatistics(serverData),
-                "get_conflicts" => ConflictTools.GetConflicts(serverData, conflictDetector,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (string?)toolArgs.GetValueOrDefault("conflictType"),
-                    (string?)toolArgs.GetValueOrDefault("severity")),
-                "calculate_market_value" => MarketValueTools.CalculateMarketValue(serverData, (string)toolArgs["defName"]!),
-                "get_references" => ReferenceTools.GetReferences(serverData, 
-                    (string)toolArgs["defName"]!, 
-                    (bool?)toolArgs.GetValueOrDefault("includeInactive") ?? false),
-                "get_def_dependencies" => ValidationTools.GetDefDependencies(serverData, (string)toolArgs["defName"]!),
-                "validate_def" => ValidationTools.ValidateDef(serverData, (string)toolArgs["defName"]!),
-                "validate_xpath" => ValidationTools.ValidateXPath(serverData, 
-                    (string)toolArgs["xpath"]!,
-                    (string?)toolArgs.GetValueOrDefault("defName")),
-                "get_def_inheritance_tree" => DefinitionTools.GetDefInheritanceTree(serverData, (string)toolArgs["defName"]!),
-                "get_patches_for_def" => DefinitionTools.GetPatchesForDef(serverData, (string)toolArgs["defName"]!),
-                "compare_defs" => DefinitionTools.CompareDefs(serverData, 
-                    (string)toolArgs["defName1"]!, 
-                    (string)toolArgs["defName2"]!),
-                "get_abstract_defs" => DefinitionTools.GetAbstractDefs(serverData, 
-                    (string?)toolArgs.GetValueOrDefault("type")),
-                "analyze_mod_compatibility" => ModAnalysisTools.AnalyzeModCompatibility(serverData,
-                    (string)toolArgs["modPackageId1"]!,
-                    (string)toolArgs["modPackageId2"]!),
-                "get_mod_dependencies" => ModAnalysisTools.GetModDependencies(serverData, (string)toolArgs["modPackageId"]!),
-                "find_broken_references" => ModAnalysisTools.FindBrokenReferences(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId")),
-                "validate_mod_structure" => ModAnalysisTools.ValidateModStructure(serverData, (string)toolArgs["modPackageId"]!),
-                "find_duplicate_content" => PerformanceTools.FindDuplicateContent(serverData,
-                    (string?)toolArgs.GetValueOrDefault("defType"),
-                    (double?)toolArgs.GetValueOrDefault("similarityThreshold") ?? 0.9),
-                "suggest_optimizations" => PerformanceTools.SuggestOptimizations(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId")),
-                "analyze_texture_usage" => PerformanceTools.AnalyzeTextureUsage(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId")),
-                "validate_localization" => DevelopmentTools.ValidateLocalization(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (string?)toolArgs.GetValueOrDefault("language")),
-                "find_unused_assets" => DevelopmentTools.FindUnusedAssets(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (string?)toolArgs.GetValueOrDefault("assetType") ?? "all"),
-                "lint_xml" => DevelopmentTools.LintXml(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (string?)toolArgs.GetValueOrDefault("severityLevel") ?? "warning"),
-                "generate_documentation" => DevelopmentTools.GenerateDocumentation(serverData,
-                    (string)toolArgs["modPackageId"]!,
-                    (string?)toolArgs.GetValueOrDefault("format") ?? "markdown"),
-                "create_compatibility_report" => DevelopmentTools.CreateCompatibilityReport(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId")),
-                "export_definitions" => DevelopmentTools.ExportDefinitions(serverData,
-                    (string?)toolArgs.GetValueOrDefault("format") ?? "json",
-                    (string?)toolArgs.GetValueOrDefault("defType"),
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (int?)toolArgs.GetValueOrDefault("maxDefinitions") ?? 1000),
-                "analyze_balance" => GameMechanicsTools.AnalyzeBalance(serverData,
-                    (string)toolArgs["defType"]!,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (string?)toolArgs.GetValueOrDefault("focusStat")),
-                "get_recipe_chains" => GameMechanicsTools.GetRecipeChains(serverData,
-                    (string)toolArgs["targetDefName"]!,
-                    (string?)toolArgs.GetValueOrDefault("direction") ?? "both",
-                    (int?)toolArgs.GetValueOrDefault("maxDepth") ?? 5),
-                "find_research_paths" => GameMechanicsTools.FindResearchPaths(serverData,
-                    (string)toolArgs["targetResearch"]!,
-                    (bool?)toolArgs.GetValueOrDefault("includeAllPaths") ?? false),
-                "get_biome_compatibility" => GameMechanicsTools.GetBiomeCompatibility(serverData,
-                    (string?)toolArgs.GetValueOrDefault("biomeDefName"),
-                    (string?)toolArgs.GetValueOrDefault("contentType") ?? "all"),
-                "calculate_room_requirements" => GameMechanicsTools.CalculateRoomRequirements(serverData,
-                    (string)toolArgs["targetDefName"]!,
-                    (bool?)toolArgs.GetValueOrDefault("includeComfort") ?? true),
-                "triage_player_log" => ModWorkflowTools.TriagePlayerLog(serverData,
-                    (string)toolArgs["logPath"]!,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (int?)toolArgs.GetValueOrDefault("maxGroups") ?? 15),
-                "validate_def_against_runtime" => ModWorkflowTools.ValidateDefAgainstRuntime(serverData,
-                    (string)toolArgs["defName"]!),
-                "scan_dlc_dependencies" => ModWorkflowTools.ScanDlcDependencies(serverData,
-                    (string?)toolArgs.GetValueOrDefault("allowedDlcs") ?? "Core,Biotech",
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (int?)toolArgs.GetValueOrDefault("maxFindingsPerMod") ?? 12),
-                "audit_scope" => ModWorkflowTools.AuditScope(serverData,
-                    (string)toolArgs["scopeType"]!,
-                    (string)toolArgs["scopeValue"]!,
-                    (string?)toolArgs.GetValueOrDefault("severity") ?? "warning",
-                    (int?)toolArgs.GetValueOrDefault("maxFindings") ?? 40),
-                "triage_patch_conflicts" => ModWorkflowTools.TriagePatchConflicts(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (string?)toolArgs.GetValueOrDefault("severity") ?? "warning",
-                    (int?)toolArgs.GetValueOrDefault("maxResults") ?? 25),
-                "content_coverage_report" => ModWorkflowTools.ContentCoverageReport(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (string?)toolArgs.GetValueOrDefault("defType"),
-                    (int?)toolArgs.GetValueOrDefault("maxExamples") ?? 12),
-                "mod_ready_check" => ModWorkflowTools.ModReadyCheck(serverData,
-                    (string?)toolArgs.GetValueOrDefault("modPackageId"),
-                    (string?)toolArgs.GetValueOrDefault("allowedDlcs") ?? "Core,Biotech",
-                    (string?)toolArgs.GetValueOrDefault("logPath"),
-                    (int?)toolArgs.GetValueOrDefault("maxIssues") ?? 8),
-                _ => throw new ArgumentException($"Unknown tool: {toolName}")
-            };
-
-            // Output the result to stdout for the Node.js wrapper to capture
-            Console.WriteLine(result);
+            return;
         }
-        catch (Exception ex)
+
+        var value = parseResult.GetValueForOption(option);
+        if (!string.IsNullOrWhiteSpace(value))
         {
-            // Output error as JSON
-            var error = new { error = ex.Message };
-            Console.WriteLine(JsonSerializer.Serialize(error));
-            Environment.Exit(1);
+            arguments[parameterName] = value;
         }
+    }
+
+    private static void AddIfProvided(
+        Dictionary<string, object?> arguments,
+        ParseResult parseResult,
+        Option<int> option,
+        string parameterName)
+    {
+        if (WasOptionProvided(parseResult, option))
+        {
+            arguments[parameterName] = parseResult.GetValueForOption(option);
+        }
+    }
+
+    private static void AddIfProvided(
+        Dictionary<string, object?> arguments,
+        ParseResult parseResult,
+        Option<double> option,
+        string parameterName)
+    {
+        if (WasOptionProvided(parseResult, option))
+        {
+            arguments[parameterName] = parseResult.GetValueForOption(option);
+        }
+    }
+
+    private static void AddIfProvided(
+        Dictionary<string, object?> arguments,
+        ParseResult parseResult,
+        Option<bool> option,
+        string parameterName)
+    {
+        if (WasOptionProvided(parseResult, option))
+        {
+            arguments[parameterName] = parseResult.GetValueForOption(option);
+        }
+    }
+
+    private static bool WasOptionProvided<T>(ParseResult parseResult, Option<T> option) =>
+        parseResult.FindResultFor(option) != null;
+
+    private static List<string> SplitOptionValues(IEnumerable<string>? values)
+    {
+        if (values == null)
+        {
+            return [];
+        }
+
+        return values
+            .SelectMany(value => value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string? ResolveOptionalPath(string? path, string baseDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        return ProjectConfigLoader.ResolvePath(path, baseDirectory);
+    }
+
+    private static string GetDefaultServerVersion()
+    {
+        var informationalVersion = typeof(Program).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        return informationalVersion?.Split('+')[0] ?? "0.0.0-local";
     }
 }

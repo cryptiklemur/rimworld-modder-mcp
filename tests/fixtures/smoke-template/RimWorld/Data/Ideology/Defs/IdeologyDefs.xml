@@ -1,0 +1,14 @@
+<Defs>
+  <ThingDef>
+    <defName>IdeologyRelic</defName>
+    <label>ideology relic</label>
+    <description>Forbidden DLC content for compatibility scans.</description>
+    <graphicData>
+      <texPath>Ideology/Relic</texPath>
+    </graphicData>
+    <statBases>
+      <MarketValue>999</MarketValue>
+      <Mass>3.5</Mass>
+    </statBases>
+  </ThingDef>
+</Defs>

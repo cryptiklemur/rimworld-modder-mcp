@@ -1,0 +1,14 @@
+<Patch>
+  <Operation Class="PatchOperationRemove">
+    <xpath>//Defs/ThingDef[defName="SharedSword"]/label</xpath>
+  </Operation>
+  <Operation Class="PatchOperationAdd">
+    <xpath>//Defs/ThingDef[defName="IdeologyRelic"]/description</xpath>
+    <value>
+      <extraDescription>beta touched ideology content</extraDescription>
+    </value>
+    <conditions>
+      <modLoaded>ludeon.rimworld.ideology</modLoaded>
+    </conditions>
+  </Operation>
+</Patch>

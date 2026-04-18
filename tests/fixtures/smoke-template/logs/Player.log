@@ -1,0 +1,5 @@
+[Info] Current smoke test log
+XML error in file /workspace/Mods/Beta/Defs/BetaDefs.xml: Could not resolve cross-reference: No RimWorldDef named "IdeologyRelic" found to give to ThingDef "BetaIdolBlade".
+Verse.Log:Error(String)
+Patch conflict while applying "SharedSword" from example.beta
+Config error in /workspace/Mods/Beta/Patches/BetaPatches.xml
