@@ -374,7 +374,15 @@ internal static class Program
             {
                 if (string.IsNullOrWhiteSpace(projectContext.RimworldPath))
                 {
-                    Console.Error.WriteLine("Missing RimWorld path. Provide --rimworld-path or set rimworldPath in .rimworld-modder-mcp.json.");
+                    Console.Error.WriteLine("Missing RimWorld path. Provide --rimworld-path, set rimworldPath in .rimworld-modder-mcp.json, or set the RIMWORLD_PATH environment variable.");
+                    context.ExitCode = 1;
+                    return;
+                }
+
+                if (!Directory.Exists(projectContext.RimworldPath))
+                {
+                    Console.Error.WriteLine($"RimWorld path does not exist: {projectContext.RimworldPath}");
+                    Console.Error.WriteLine("Provide a valid --rimworld-path, set rimworldPath in .rimworld-modder-mcp.json, or set the RIMWORLD_PATH environment variable.");
                     context.ExitCode = 1;
                     return;
                 }
@@ -490,7 +498,7 @@ internal static class Program
             RimworldPath = ResolveOptionalPath(
                 WasOptionProvided(parseResult, rimworldPathOption)
                     ? parseResult.GetValueForOption(rimworldPathOption)
-                    : config?.RimworldPath,
+                    : config?.RimworldPath ?? Environment.GetEnvironmentVariable("RIMWORLD_PATH"),
                 projectRoot),
             ModDirs = cliModDirs.Count > 0
                 ? ProjectConfigLoader.ResolvePaths(cliModDirs, projectRoot)
@@ -939,6 +947,10 @@ internal static class Program
 
             logger.LogInformation("   ✓ Loaded {ModCount} mods", serverData.Mods.Count);
             logger.LogInformation("   ✓ Found {DefCount} defs", serverData.Defs.Count);
+            if (serverData.Defs.Count == 0)
+            {
+                logger.LogError("DISCOVERY FAILED: 0 defs loaded. Verify that rimworldPath points to a valid RimWorld installation containing a Data/Core directory.");
+            }
             logger.LogInformation("⏱️  Performance Timings:");
             logger.LogInformation("   • Mod loading + def scanning: {Duration:F2}s", modLoadingStopwatch.Elapsed.TotalSeconds);
             logger.LogInformation("   • Conflict detection: {Duration:F2}s", conflictStopwatch.Elapsed.TotalSeconds);

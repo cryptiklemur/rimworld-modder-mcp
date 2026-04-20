@@ -39,7 +39,7 @@ public class ModLoader
 
         _logger.LogInformation("Loading DLCs...");
         var dlcSw = Stopwatch.StartNew();
-        string[] dlcNames = ["Royalty", "Ideology", "Biotech", "Anomaly"];
+        string[] dlcNames = ["Royalty", "Ideology", "Biotech", "Anomaly", "Odyssey"];
 
         // Load DLCs in parallel
         List<Task<(string dlcName, ModInfo? modInfo)>> dlcTasks = [];
@@ -114,6 +114,12 @@ public class ModLoader
 
     private async Task<ModInfo?> LoadModInfoAsync(string modPath, int loadOrder, bool isCore, bool isDLC)
     {
+        if (!Directory.Exists(modPath))
+        {
+            _logger.LogWarning("Mod directory not found, skipping: {ModPath}", modPath);
+            return null;
+        }
+
         var aboutPath = Path.Combine(modPath, "About", "About.xml");
 
         try

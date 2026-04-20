@@ -16,9 +16,11 @@ public static class StatisticsTools
         var loadingTimeElapsed = (DateTime.UtcNow - serverData.StartTime).TotalSeconds;
         var isFullyLoaded = serverData.IsFullyLoaded;
         
-        string statusMessage = isFullyLoaded ? "✅ Server fully loaded and operational" :
-                              serverData.IsModsLoaded && serverData.IsDefsLoaded ? "🔄 Server loading in background..." :
-                              "⏳ Server initializing...";
+        string statusMessage = isFullyLoaded && serverData.Defs.Count == 0
+            ? "WARNING: loading completed but zero defs were discovered — check rimworldPath configuration"
+            : isFullyLoaded ? "Server fully loaded and operational"
+            : serverData.IsModsLoaded && serverData.IsDefsLoaded ? "Server loading in background..."
+            : "Server initializing...";
 
         // Def type counts
         var defTypeCounts = serverData.Defs.Values
